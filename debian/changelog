@@ -1,0 +1,5 @@
+opentofu (1.7.3-1kaisen) kaisen-packages; urgency=medium
+
+  * First packaging for Kaisen Linux
+
+ -- Kevin Chevreuil - Kaisen <kaisen@kaisenlinux.org>  Wed, 24 Jul 2024 09:59:33 +0200

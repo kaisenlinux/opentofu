@@ -1,0 +1,15 @@
+Author: Kevin Chevreuil - Kaisen <kaisen@kaisenlinux.org>
+
+--- opentofu-1.7.2.orig/scripts/build.sh
++++ opentofu-1.7.2/scripts/build.sh
+@@ -16,8 +16,8 @@ DIR="$( cd -P "$( dirname "$SOURCE" )/..
+ cd "$DIR"
+ 
+ # Determine the arch/os combos we're building for
+-XC_ARCH=${XC_ARCH:-"386 amd64 arm"}
+-XC_OS=${XC_OS:-linux darwin windows freebsd openbsd solaris}
++XC_ARCH=${XC_ARCH:-"amd64"}
++XC_OS=${XC_OS:-linux}
+ XC_EXCLUDE_OSARCH="!darwin/arm !darwin/386"
+ 
+ # Delete the old dir

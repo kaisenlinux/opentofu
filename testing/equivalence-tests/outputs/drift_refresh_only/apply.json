@@ -1,0 +1,20 @@
+[
+  {
+    "@level": "info",
+    "@message": "Apply complete! Resources: 0 added, 0 changed, 0 destroyed.",
+    "changes": {
+      "add": 0,
+      "change": 0,
+      "import": 0,
+      "operation": "apply",
+      "remove": 0
+    },
+    "type": "change_summary"
+  },
+  {
+    "@level": "info",
+    "@message": "Outputs: 0",
+    "outputs": {},
+    "type": "outputs"
+  }
+]

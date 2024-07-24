@@ -1,0 +1,46 @@
+---
+description: >-
+  The tofu version command displays the OpenTofu version and the version
+  of all installed plugins.
+---
+
+# Command: version
+
+The `tofu version` displays the current version of OpenTofu and all
+installed plugins.
+
+## Usage
+
+Usage: `tofu version [options]`
+
+With no additional arguments, `version` will display the version of OpenTofu,
+the platform it's installed on, and installed providers.
+
+This command has one optional flag:
+
+* `-json` - If specified, the version information is formatted as a JSON object,
+  and no upgrade or security information is included.
+
+## Example
+
+Basic usage, with security information shown if relevant:
+
+```shellsession
+$ tofu version
+OpenTofu v1.6.0
+on darwin_amd64
++ provider registry.opentofu.org/hashicorp/null v3.0.0
+```
+
+As JSON:
+
+```shellsession
+$ tofu version -json
+{
+  "terraform_version": "0.16.0-alpha2",
+  "platform": "darwin_amd64",
+  "provider_selections": {
+    "registry.opentofu.org/hashicorp/null": "3.0.0"
+  }
+}
+```

@@ -1,0 +1,60 @@
+---
+description: |-
+  The `tofu refresh` command reads the current settings from all managed
+  remote objects and updates the OpenTofu state to match.
+---
+
+# Command: refresh
+
+The `tofu refresh` command reads the current settings from all managed
+remote objects and updates the OpenTofu state to match.
+
+:::warning
+This command is deprecated, because its default behavior is
+unsafe if you have misconfigured credentials for any of your providers.
+See below for more information and recommended alternatives.
+:::
+
+This won't modify your real remote objects, but it will modify the
+[OpenTofu state](../../language/state/index.mdx).
+
+You shouldn't typically need to use this command, because OpenTofu
+automatically performs the same refreshing actions as a part of creating
+a plan in both the
+[`tofu plan`](../../cli/commands/plan.mdx)
+and
+[`tofu apply`](../../cli/commands/apply.mdx)
+commands. This command is here primarily for backward compatibility, but
+we don't recommend using it because it provides no opportunity to review
+the effects of the operation before updating the state.
+
+## Usage
+
+Usage: `tofu refresh [options]`
+
+This command is effectively an alias for the following command:
+
+```
+tofu apply -refresh-only -auto-approve
+```
+
+Consequently, it supports all of the same options as
+[`tofu apply`](../../cli/commands/apply.mdx) except that it does not accept a saved
+plan file, it doesn't allow selecting a planning mode other than "refresh only",
+and `-auto-approve` is always enabled.
+
+Automatically applying the effect of a refresh is risky. If you have
+misconfigured credentials for one or more providers, OpenTofu may
+be misled into thinking that all of the managed objects have been deleted,
+causing it to remove all of the tracked objects without any confirmation prompt.
+
+Instead, we recommend using the following command in order to get the same
+effect but with the opportunity to review the changes that OpenTofu has
+detected before committing them to the state:
+
+```
+tofu apply -refresh-only
+```
+
+This alternative command will present an interactive prompt for you to confirm
+the detected changes.

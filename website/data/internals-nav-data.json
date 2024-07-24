@@ -1,0 +1,56 @@
+[
+  { "heading": "OpenTofu Internals" },
+  {
+    "title": "Overview",
+    "path": "internals/index"
+  },
+  {
+    "title": "Credentials Helpers",
+    "path": "internals/credentials-helpers"
+  },
+  {
+    "title": "Debugging OpenTofu",
+    "path": "internals/debugging"
+  },
+  {
+    "title": "Module Registry Protocol",
+    "path": "internals/module-registry-protocol"
+  },
+  {
+    "title": "Provider Network Mirror Protocol",
+    "path": "internals/provider-network-mirror-protocol"
+  },
+  {
+    "title": "Provider Registry Protocol",
+    "path": "internals/provider-registry-protocol"
+  },
+  {
+    "title": "Resource Graph",
+    "path": "internals/graph"
+  },
+  {
+    "title": "Login Protocol",
+    "path": "internals/login-protocol"
+  },
+  {
+    "title": "JSON Output Format",
+    "path": "internals/json-format"
+  },
+  {
+    "title": "Remote Service Discovery",
+    "path": "internals/remote-service-discovery"
+  },
+  {
+    "title": "Provider Metadata",
+    "path": "internals/provider-meta"
+  },
+  {
+    "title": "Functions Metadata",
+    "path": "internals/functions-meta"
+  },
+  {
+    "title": "Machine Readable UI",
+    "path": "internals/machine-readable-ui",
+    "hidden": true
+  }
+]

@@ -1,0 +1,27 @@
+#!/usr/bin/make -f
+
+include /usr/share/dpkg/default.mk
+
+export GOPATH=$(CURDIR)/_build
+export GOBIN=$(GOPATH)/bin
+export CGO_ENABLED=0
+
+%:
+	dh $@ --buildsystem=golang --builddirectory=_build
+
+override_dh_auto_clean:
+	rm -rf $(CURDIR)/_build
+
+override_dh_auto_build:
+	#Download deps
+	make
+	#Build the binary
+	$(CURDIR)/scripts/build.sh
+
+override_dh_auto_test:
+
+override_dh_dwz:
+
+override_dh_auto_install:
+	install -p -m 0755 $(CURDIR)/_build/bin/tofu $(CURDIR)/debian/opentofu/usr/bin/
+	install -p -m 0644 $(CURDIR)/debian/opentofu.png $(CURDIR)/debian/opentofu/usr/share/pixmaps

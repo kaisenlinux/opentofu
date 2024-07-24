@@ -1,0 +1,31 @@
+---
+description: >-
+  The tofu providers command prints information about the providers
+  required in the current configuration.
+---
+
+# Command: providers
+
+The `tofu providers` command shows information about the
+[provider requirements](../../../language/providers/requirements.mdx) of the
+configuration in the current working directory, as an aid to understanding
+where each requirement was detected from.
+
+This command also has several subcommands with different purposes.
+
+## Usage
+
+Usage:
+```
+$ tofu providers
+
+Providers required by configuration:
+.
+└── module.submodule
+    ├── provider[registry.opentofu.org/hashicorp/tfcoremock]
+    └── module.nested
+
+Providers required by state:
+
+    provider[registry.opentofu.org/hashicorp/tfcoremock]
+```

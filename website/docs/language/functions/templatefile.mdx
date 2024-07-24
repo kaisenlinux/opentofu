@@ -1,0 +1,174 @@
+---
+sidebar_label: templatefile
+description: |-
+  The templatefile function reads the file at the given path and renders its
+  content as a template.
+---
+
+# `templatefile` Function
+
+`templatefile` reads the file at the given path and renders its content
+as a template using a supplied set of template variables.
+
+```hcl
+templatefile(path, vars)
+```
+
+The template syntax is the same as for
+[string templates](../../language/expressions/strings.mdx#string-templates)
+in the main OpenTofu language, including interpolation sequences delimited with
+`${` ... `}`. This function just allows longer template sequences to be factored
+out into a separate file for readability.
+
+The "vars" argument must be an object. Within the template file, each of the
+keys in the map is available as a variable for interpolation. The template may
+also use any other function available in the OpenTofu language. Variable
+names must each start with a letter, followed by zero or more
+letters, digits, or underscores.
+
+Strings in the OpenTofu language are sequences of Unicode characters, so
+this function will interpret the file contents as UTF-8 encoded text and
+return the resulting Unicode characters. If the file contains invalid UTF-8
+sequences then this function will produce an error.
+
+This function can be used only with files that already exist on disk at the
+beginning of an OpenTofu run. Functions do not participate in the dependency
+graph, so this function cannot be used with files that are generated
+dynamically during an OpenTofu operation.
+
+`*.tftpl` is the recommended naming pattern to use for your template files.
+OpenTofu will not prevent you from using other names, but following this
+convention will help your editor understand the content and likely provide
+better editing experience as a result.
+
+## Recursion
+
+There are a few limitations to be aware of if recursion is used with templatefile.
+
+Any recursive calls to `templatefile` will have a limited call depth (1024 by default).
+This is to prevent crashes due to unintential infinite recursive calls and limit the chance
+of Out Of Memory crashes.
+
+As tail-recursion is not supported, all documents in a call stack must be loaded
+into memory before the stack can unwind. On most modern systems and configurations
+this will likely not be an issue, but it is worth being mindful of.
+
+If the maximum recursion depth is hit during execution, a concise error will be provided
+which describes the first few steps of the call stack to help you diagnose the issue.
+If you need the full call stack, setting `TF_LOG=debug` will cause the full templatefile
+callstack to be printed to the console.
+
+If your configuration requires a larger maximum recursion depth, you can override the
+default using the `TF_TEMPLATE_RECURSION_DEPTH` environment variable. This is not
+recommended and is only provided as an escape hatch. Additionally, setting it lower
+than the 1024 default has the potential to cause problems with modules that use
+the templatefile function.
+
+## Examples
+
+### Lists
+
+Given a template file `backends.tftpl` with the following content:
+
+```
+%{ for addr in ip_addrs ~}
+backend ${addr}:${port}
+%{ endfor ~}
+```
+
+The `templatefile` function renders the template:
+
+```
+> templatefile("${path.module}/backends.tftpl", { port = 8080, ip_addrs = ["10.0.0.1", "10.0.0.2"] })
+backend 10.0.0.1:8080
+backend 10.0.0.2:8080
+
+```
+
+### Maps
+
+Given a template file `config.tftpl` with the following content:
+
+```
+%{ for config_key, config_value in config }
+set ${config_key} = ${config_value}
+%{ endfor ~}
+```
+
+The `templatefile` function renders the template:
+
+```
+> templatefile(
+               "${path.module}/config.tftpl",
+               {
+                 config = {
+                   "x"   = "y"
+                   "foo" = "bar"
+                   "key" = "value"
+                 }
+               }
+              )
+set foo = bar
+set key = value
+set x = y
+```
+
+### Generating JSON or YAML from a template
+
+If the string you want to generate will be in JSON or YAML syntax, it's
+often tricky and tedious to write a template that will generate valid JSON or
+YAML that will be interpreted correctly when using lots of individual
+interpolation sequences and directives.
+
+Instead, you can write a template that consists only of a single interpolated
+call to either [`jsonencode`](../../language/functions/jsonencode.mdx) or
+[`yamlencode`](../../language/functions/yamlencode.mdx), specifying the value to encode using
+[normal OpenTofu expression syntax](../../language/expressions/index.mdx)
+as in the following examples:
+
+```
+${jsonencode({
+  "backends": [for addr in ip_addrs : "${addr}:${port}"],
+})}
+```
+
+```
+${yamlencode({
+  "backends": [for addr in ip_addrs : "${addr}:${port}"],
+})}
+```
+
+Given the same input as the `backends.tftpl` example in the previous section,
+this will produce a valid JSON or YAML representation of the given data
+structure, without the need to manually handle escaping or delimiters.
+In the latest examples above, the repetition based on elements of `ip_addrs` is
+achieved by using a
+[`for` expression](../../language/expressions/for.mdx)
+rather than by using
+[template directives](../../language/expressions/strings.mdx#directives).
+
+```json
+{"backends":["10.0.0.1:8080","10.0.0.2:8080"]}
+```
+
+If the resulting template is small, you can choose instead to write
+`jsonencode` or `yamlencode` calls inline in your main configuration files, and
+avoid creating separate template files at all:
+
+```hcl
+locals {
+  backend_config_json = jsonencode({
+    "backends": [for addr in ip_addrs : "${addr}:${port}"],
+  })
+}
+```
+
+For more information, see the main documentation for
+[`jsonencode`](../../language/functions/jsonencode.mdx) and [`yamlencode`](../../language/functions/yamlencode.mdx).
+
+## Related Functions
+
+* [`file`](../../language/functions/file.mdx) reads a file from disk and returns its literal contents
+  without any template interpretation.
+* [`templatestring`](../../language/functions/templatestring.mdx) takes a string and renders it as a
+  template using a supplied set of template variables.

@@ -1,0 +1,60 @@
+---
+title: Getting started
+sidebar_position: 2
+description: |-
+  OpenTofu is an infrastructure as code tool that lets you build, change, and version cloud and on-prem resources safely and efficiently.
+---
+
+# What is OpenTofu?
+
+OpenTofu is an infrastructure as code tool that lets you define both cloud and on-prem resources in human-readable configuration files that you can version, reuse, and share. You can then use a consistent workflow to provision and manage all of your infrastructure throughout its lifecycle. OpenTofu can manage low-level components like compute, storage, and networking resources, as well as high-level components like DNS entries and SaaS features.
+
+## How does OpenTofu work?
+
+OpenTofu creates and manages resources on cloud platforms and other services through their application programming interfaces (APIs). Providers enable OpenTofu to work with virtually any platform or service with an accessible API.
+
+![OpenTofu creates and manages cloud platforms and services through their APIs](/img/docs/intro-opentf-apis.png)
+
+The OpenTofu community have already written **thousands of providers** to manage many different types of resources and services. You can find all publicly available providers on the [Public OpenTofu Registry](https://github.com/opentofu/registry/tree/main/providers), including Amazon Web Services (AWS), Azure, Google Cloud Platform (GCP), Kubernetes, Helm, GitHub, Splunk, DataDog, and many more.
+
+The core OpenTofu workflow consists of three stages:
+
+- **Write:** You define resources, which may be across multiple cloud providers and services. For example, you might create a configuration to deploy an application on virtual machines in a Virtual Private Cloud (VPC) network with security groups and a load balancer.
+- **Plan:** OpenTofu creates an execution plan describing the infrastructure it will create, update, or destroy based on the existing infrastructure and your configuration.
+- **Apply:** On approval, OpenTofu performs the proposed operations in the correct order, respecting any resource dependencies. For example, if you update the properties of a VPC and change the number of virtual machines in that VPC, OpenTofu will recreate the VPC before scaling the virtual machines.
+
+![The OpenTofu workflow has three steps: Write, Plan, and Apply](/img/docs/intro-opentf-workflow.png)
+
+## Why OpenTofu?
+
+### Manage any infrastructure
+
+Find providers for many of the platforms and services you already use in the [Public OpenTofu Registry](https://registry.opentofu.org/). You can also use the [Terraform Plugin SDK](https://developer.hashicorp.com/terraform/plugin) to write your own. OpenTofu takes an [immutable approach to infrastructure](https://www.hashicorp.com/resources/what-is-mutable-vs-immutable-infrastructure), reducing the complexity of upgrading or modifying your services and infrastructure.
+
+### Track your infrastructure
+
+OpenTofu generates a plan and prompts you for your approval before modifying your infrastructure. It also keeps track of your real infrastructure in a [state file](../language/state/index.mdx), which acts as a source of truth for your environment. OpenTofu uses the state file to determine the changes to make to your infrastructure so that it will match your configuration.
+
+### Automate changes
+
+OpenTofu configuration files are declarative, meaning that they describe the end state of your infrastructure. You do not need to write step-by-step instructions to create resources because OpenTofu handles the underlying logic. OpenTofu builds a resource graph to determine resource dependencies and creates or modifies non-dependent resources in parallel. This allows OpenTofu to provision resources efficiently.
+
+### Standardize configurations
+
+OpenTofu supports reusable configuration components called [modules](../language/modules/index.mdx) that define configurable collections of infrastructure, saving time and encouraging best practices. You can use publicly available modules from the OpenTofu Registry, or write your own.
+
+### Collaborate
+
+Since your configuration is written in a file, you can commit it to a Version Control System (VCS) and use a cloud backend to efficiently manage OpenTofu workflows across teams. A cloud backend runs OpenTofu in a consistent, reliable environment and provides secure access to shared state and secret data, role-based access controls, a private registry for sharing both modules and providers, and more.
+
+:::note Tip
+Learn more about [OpenTofu use cases](use-cases.mdx) and [how OpenTofu compares to alternatives](vs/index.mdx).
+:::
+
+## Community
+
+We welcome questions, suggestions, and contributions from the community.
+
+- Ask questions in [OpenTofu Discuss](https://github.com/orgs/opentofu/discussions).
+- Read our [contributing guide](https://github.com/opentofu/opentofu/blob/main/CONTRIBUTING.md).
+- [Submit an issue](https://github.com/opentofu/opentofu/issues) for bugs and feature requests.

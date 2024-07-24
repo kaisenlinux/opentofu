@@ -1,0 +1,20 @@
+Source: opentofu
+Section: admin
+Priority: optional
+Maintainer: Kevin Chevreuil - Kaisen <kaisen@kaisenlinux.org>
+Build-Depends: debhelper-compat (= 13),
+	       golang-go (>= 1.21),
+	       dh-golang,
+	       gox,
+Standards-Version: 4.7.2
+Homepage: https://opentofu.org/
+Vcs-Browser: https://gitlab.com/kaisenlinux/packages/opentofu
+Vcs-Git: https://gitlab.com/kaisenlinux/packages/opentofu.git
+XS-Go-Import-Path: github.com/opentofu/opentofu
+
+Package: opentofu
+Architecture: amd64 arm64
+Depends: ${shlibs:Depends},
+	 ${misc:Depends},
+Description: OpenTofu lets you declaratively manage your cloud infrastructure
+ OpenTofu enables you to safely and predictably create, change, and improve infrastructure. It is an open source tool that codifies APIs into declarative configuration files that can be shared amongst team members, treated as code, edited, reviewed, and versioned.

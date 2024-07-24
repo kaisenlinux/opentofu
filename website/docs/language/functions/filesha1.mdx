@@ -1,0 +1,19 @@
+---
+sidebar_label: filesha1
+description: |-
+  The filesha1 function computes the SHA1 hash of the contents of
+  a given file and encodes it as hex.
+---
+
+# `filesha1` Function
+
+`filesha1` is a variant of [`sha1`](../../language/functions/sha1.mdx)
+that hashes the contents of a given file rather than a literal string.
+
+This is similar to `sha1(file(filename))`, but
+because [`file`](../../language/functions/file.mdx) accepts only UTF-8 text it cannot be used to
+create hashes for binary files.
+
+Collision attacks have been successfully performed against this hashing
+function. Before using this function for anything security-sensitive, review
+relevant literature to understand the security implications.

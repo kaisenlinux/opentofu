@@ -1,0 +1,77 @@
+---
+sidebar_label: yamlencode
+description: The yamlencode function encodes a given value as a YAML string.
+---
+
+# `yamlencode` Function
+
+`yamlencode` encodes a given value to a string using
+[YAML 1.2](https://yaml.org/spec/1.2/spec.html) block syntax.
+
+This function maps
+[OpenTofu language values](../../language/expressions/types.mdx)
+to YAML tags in the following way:
+
+| OpenTofu type | YAML type            |
+| -------------- | -------------------- |
+| `string`       | `!!str`              |
+| `number`       | `!!float` or `!!int` |
+| `bool`         | `!!bool`             |
+| `list(...)`    | `!!seq`              |
+| `set(...)`     | `!!seq`              |
+| `tuple(...)`   | `!!seq`              |
+| `map(...)`     | `!!map`              |
+| `object(...)`  | `!!map`              |
+| Null value     | `!!null`             |
+
+`yamlencode` uses the implied syntaxes for all of the above types, so it does
+not generate explicit YAML tags.
+
+Because the YAML format cannot fully represent all of the OpenTofu language
+types, passing the `yamlencode` result to `yamldecode` will not produce an
+identical value, but the OpenTofu language automatic type conversion rules
+mean that this is rarely a problem in practice.
+
+YAML is a superset of JSON, and so where possible we recommend generating
+JSON using [`jsonencode`](../../language/functions/jsonencode.mdx) instead, even if
+a remote system supports YAML. JSON syntax is equivalent to flow-style YAML
+and OpenTofu can present detailed structural change information for JSON
+values in plans, whereas OpenTofu will treat block-style YAML just as a normal
+multi-line string. However, generating YAML may improve readability if the
+resulting value will be directly read or modified in the remote system by
+humans.
+
+## Examples
+
+```
+> yamlencode({"a":"b", "c":"d"})
+"a": "b"
+"c": "d"
+
+> yamlencode({"foo":[1, 2, 3], "bar": "baz"})
+"bar": "baz"
+"foo":
+- 1
+- 2
+- 3
+
+> yamlencode({"foo":[1, {"a":"b","c":"d"}, 3], "bar": "baz"})
+"bar": "baz"
+"foo":
+- 1
+- "a": "b"
+  "c": "d"
+- 3
+```
+
+`yamlencode` always uses YAML's "block style" for mappings and sequences, unless
+the mapping or sequence is empty. To generate flow-style YAML, use
+[`jsonencode`](../../language/functions/jsonencode.mdx) instead: YAML flow-style is a superset
+of JSON syntax.
+
+## Related Functions
+
+- [`jsonencode`](../../language/functions/jsonencode.mdx) is a similar operation using JSON instead
+  of YAML.
+- [`yamldecode`](../../language/functions/yamldecode.mdx) performs the opposite operation, _decoding_
+  a YAML string to obtain its represented value.

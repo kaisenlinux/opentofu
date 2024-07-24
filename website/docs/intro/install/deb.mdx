@@ -1,0 +1,52 @@
+---
+sidebar_position: 2
+sidebar_label: .deb-based Linux (Debian, Ubuntu)
+description: |-
+  Install OpenTofu on Debian Linux and its derivatives.
+---
+
+import CodeBlock from '@theme/CodeBlock';
+import DebConvenienceScript from '!!raw-loader!./deb-convenience.sh'
+import DebStep1Script from '!!raw-loader!./deb-step1.sh'
+import DebStep2Script from '!!raw-loader!./deb-step2.sh'
+import DebStep3Script from '!!raw-loader!./deb-step3.sh'
+import DebStep4Script from '!!raw-loader!./deb-step4.sh'
+import Buildkite from './buildkite'
+
+# Installing OpenTofu on .deb-based Linux (Debian, Ubuntu, etc.)
+
+<Buildkite />
+
+You can install OpenTofu from our Debian repository by following the step-by-step instructions below.
+
+## Installing using the installer
+
+You can use the OpenTofu installer script to run the installation.
+
+<CodeBlock language="bash">{DebConvenienceScript}</CodeBlock>
+
+## Step-by-step instructions
+
+The following steps explain how to set up the OpenTofu Debian repositories. These instructions should work on most Debian-based Linux systems.
+
+### Installing tooling
+
+In order to add the repositories, you will need to install some tooling. On most Debian-based operating systems, these tools will already be installed.
+
+<CodeBlock language={"bash"}>{DebStep1Script}</CodeBlock>
+
+### Set up the OpenTofu repository
+
+First, you need to make sure you have a copy of the OpenTofu GPG key. This verifies that your packages have indeed been created using the official pipeline and have not been tampered with.
+
+<CodeBlock language={"bash"}>{DebStep2Script}</CodeBlock>
+
+Now you have to create the OpenTofu source list.
+
+<CodeBlock language={"bash"}>{DebStep3Script}</CodeBlock>
+
+### Installing OpenTofu
+
+Finally, you can install OpenTofu:
+
+<CodeBlock language={"bash"}>{DebStep4Script}</CodeBlock>

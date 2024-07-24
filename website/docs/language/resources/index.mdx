@@ -1,0 +1,33 @@
+---
+description: >-
+  Resources describe infrastructure objects in OpenTofu configurations. Find
+  documentation for resource syntax, behavior, and meta-arguments.
+---
+
+# Resources
+
+_Resources_ are the most important element in the OpenTofu language.
+Each resource block describes one or more infrastructure objects, such
+as virtual networks, compute instances, or higher-level components such
+as DNS records.
+
+- [Resource Blocks](../../language/resources/syntax.mdx) documents
+  the syntax for declaring resources.
+
+- [Resource Behavior](../../language/resources/behavior.mdx) explains in
+  more detail how OpenTofu handles resource declarations when applying a
+  configuration.
+
+- The Meta-Arguments section documents special arguments that can be used with
+  every resource type, including
+  [`depends_on`](../../language/meta-arguments/depends_on.mdx),
+  [`count`](../../language/meta-arguments/count.mdx),
+  [`for_each`](../../language/meta-arguments/for_each.mdx),
+  [`provider`](../../language/meta-arguments/resource-provider.mdx),
+  and [`lifecycle`](../../language/meta-arguments/lifecycle.mdx).
+
+- [Provisioners](../../language/resources/provisioners/syntax.mdx)
+  documents configuring post-creation actions for a resource using the
+  `provisioner` and `connection` blocks. Since provisioners are non-declarative
+  and potentially unpredictable, we strongly recommend that you treat them as a
+  last resort.

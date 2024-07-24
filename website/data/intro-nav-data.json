@@ -1,0 +1,19 @@
+[
+  { "heading": "Introduction to OpenTofu" },
+  { "title": "What is OpenTofu?", "path": "intro/index" },
+  { "title": "Use Cases", "path": "intro/use-cases" },
+  { "title": "The Core OpenTofu Workflow", "path": "intro/core-workflow" },
+  {
+    "title": "OpenTofu vs. Alternatives",
+    "routes": [
+      { "title": "Overview", "path": "intro/vs/index" },
+      { "title": "Chef, Puppet, etc.", "path": "intro/vs/chef-puppet" },
+      {
+        "title": "CloudFormation, Heat, etc.",
+        "path": "intro/vs/cloudformation"
+      },
+      { "title": "Boto, Fog, etc.", "path": "intro/vs/boto" },
+      { "title": "Custom Solutions", "path": "intro/vs/custom" }
+    ]
+  }
+]

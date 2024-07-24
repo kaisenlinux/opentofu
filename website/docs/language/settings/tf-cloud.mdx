@@ -1,0 +1,28 @@
+---
+description: >-
+  The nested `cloud` block configures OpenTofu's integration with a cloud backend.
+---
+
+# Cloud Configuration
+
+The main module of an OpenTofu configuration can integrate with a cloud backend to enable its [CLI-driven run workflow](../../cli/cloud/index.mdx) (if supported by your cloud backend). You only need to configure these settings when you want to use OpenTofu CLI to interact with a cloud backend.
+A cloud backend ignores them when interacting with OpenTofu through version control or the API.
+
+## Usage Example
+
+To configure the cloud CLI integration, add a nested `cloud` block within the `terraform` block. You cannot use the CLI integration and a state backend in the same configuration.
+
+Refer to [Using the Cloud Backend](../../cli/cloud/index.mdx) in the OpenTofu CLI documentation for full configuration details, migration instructions, and command line arguments.
+
+```hcl
+terraform {
+  cloud {
+    organization = "example_corp"
+    hostname = "app.example.io"
+
+    workspaces {
+      tags = ["app"]
+    }
+  }
+}
+```

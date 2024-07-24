@@ -1,0 +1,1379 @@
+[
+  { "heading": "OpenTofu Language" },
+  { "title": "Overview", "path": "language/index" },
+  {
+    "title": "Attributes as Blocks - Configuration Language",
+    "path": "language/attr-as-blocks",
+    "hidden": true
+  },
+  {
+    "title": "Files and Directories",
+    "routes": [
+      { "title": "Overview", "path": "language/files/index" },
+      { "title": "Override Files", "path": "language/files/override" },
+      {
+        "title": "Dependency Lock File",
+        "path": "language/files/dependency-lock"
+      }
+    ]
+  },
+  {
+    "title": "Syntax",
+    "routes": [
+      { "title": "Overview", "path": "language/syntax/index" },
+      {
+        "title": "Configuration Syntax",
+        "path": "language/syntax/configuration"
+      },
+      {
+        "title": "JSON Configuration Syntax",
+        "path": "language/syntax/json"
+      },
+      { "title": "Style Conventions", "path": "language/syntax/style" }
+    ]
+  },
+  {
+    "title": "language/Resources",
+    "routes": [
+      { "title": "Overview", "path": "language/resources/index" },
+      { "title": "Resource Blocks", "path": "language/resources/syntax" },
+      {
+        "title": "Resource Behavior",
+        "path": "language/resources/behavior"
+      },
+      {
+        "title": "Meta-Arguments",
+        "routes": [
+          {
+            "title": "<code>depends_on</code>",
+            "path": "language/meta-arguments/depends_on"
+          },
+          {
+            "title": "<code>count</code>",
+            "path": "language/meta-arguments/count"
+          },
+          {
+            "title": "<code>for_each</code>",
+            "path": "language/meta-arguments/for_each"
+          },
+          {
+            "title": "<code>provider</code>",
+            "path": "language/meta-arguments/resource-provider"
+          },
+          {
+            "title": "<code>lifecycle</code>",
+            "path": "language/meta-arguments/lifecycle"
+          }
+        ]
+      },
+      {
+        "title": "Provisioners",
+        "routes": [
+          {
+            "title": "Declaring Provisioners",
+            "path": "language/resources/provisioners/syntax"
+          },
+          {
+            "title": "Provisioner Connections",
+            "path": "language/resources/provisioners/connection"
+          },
+          {
+            "title": "Provisioners Without a Resource",
+            "path": "language/resources/provisioners/null_resource"
+          },
+          {
+            "title": "file",
+            "path": "language/resources/provisioners/file"
+          },
+          {
+            "title": "local-exec",
+            "path": "language/resources/provisioners/local-exec"
+          },
+          {
+            "title": "remote-exec",
+            "path": "language/resources/provisioners/remote-exec"
+          }
+        ]
+      },
+      {
+        "title": "The <code>terraform_data</code> Resource Type",
+        "path": "language/resources/tf-data"
+      }
+    ]
+  },
+  { "title": "Data Sources", "path": "language/data-sources/index" },
+  {
+    "title": "Meta-Arguments",
+    "hidden": true,
+    "routes": [
+      {
+        "title": "<code>count</code>",
+        "path": "language/meta-arguments/count"
+      },
+      {
+        "title": "<code>depends_on</code>",
+        "path": "language/meta-arguments/depends_on"
+      },
+      {
+        "title": "<code>for_each</code>",
+        "path": "language/meta-arguments/for_each"
+      },
+      {
+        "title": "<code>lifecycle</code>",
+        "path": "language/meta-arguments/lifecycle"
+      },
+      {
+        "title": "<code>providers</code>",
+        "path": "language/meta-arguments/module-providers"
+      },
+      {
+        "title": "<code>provider</code>",
+        "path": "language/meta-arguments/resource-provider"
+      }
+    ]
+  },
+
+  {
+    "title": "Providers",
+    "routes": [
+      { "title": "Overview", "path": "language/providers/index" },
+      {
+        "title": "Provider Configuration",
+        "path": "language/providers/configuration"
+      },
+      {
+        "title": "Provider Requirements",
+        "path": "language/providers/requirements"
+      },
+      {
+        "title": "Dependency Lock File",
+        "path": "language/files/dependency-lock"
+      }
+    ]
+  },
+  {
+    "title": "Variables and Outputs",
+    "routes": [
+      { "title": "Overview", "path": "language/values/index" },
+      { "title": "Input Variables", "path": "language/values/variables" },
+      { "title": "Output Values", "path": "language/values/outputs" },
+      { "title": "Local Values", "path": "language/values/locals" }
+    ]
+  },
+  {
+    "title": "Modules",
+    "routes": [
+      { "title": "Overview", "path": "language/modules/index" },
+
+      { "title": "Module Blocks", "path": "language/modules/syntax" },
+      { "title": "Module Sources", "path": "language/modules/sources" },
+      {
+        "title": "Meta-Arguments",
+        "routes": [
+          {
+            "title": "<code>providers</code>",
+            "path": "language/meta-arguments/module-providers"
+          },
+          {
+            "title": "<code>depends_on</code>",
+            "path": "language/meta-arguments/depends_on"
+          },
+          {
+            "title": "<code>count</code>",
+            "path": "language/meta-arguments/count"
+          },
+          {
+            "title": "<code>for_each</code>",
+            "path": "language/meta-arguments/for_each"
+          }
+        ]
+      },
+      {
+        "title": "Module Development",
+        "routes": [
+          { "title": "Overview", "path": "language/modules/develop/index" },
+          {
+            "title": "Standard Module Structure",
+            "path": "language/modules/develop/structure"
+          },
+          {
+            "title": "Providers Within Modules",
+            "path": "language/modules/develop/providers"
+          },
+          {
+            "title": "Best Practices: Module Composition",
+            "path": "language/modules/develop/composition"
+          },
+          {
+            "title": "Publishing Modules",
+            "path": "language/modules/develop/publish"
+          },
+          {
+            "title": "Refactoring Modules",
+            "path": "language/modules/develop/refactoring"
+          }
+        ]
+      },
+      {
+        "title": "Module Testing Experiment",
+        "path": "language/modules/testing-experiment",
+        "hidden": true
+      }
+    ]
+  },
+  { "title": "Checks", "path": "language/checks/index" },
+  {
+    "title": "Import",
+    "routes": [
+      { "title": "Overview", "path": "language/import/index" },
+      {
+        "title": "Generating Configuration",
+        "path": "language/import/generating-configuration"
+      }
+    ]
+  },
+  {
+    "title": "Expressions",
+    "routes": [
+      { "title": "Overview", "path": "language/expressions/index" },
+      { "title": "Types and Values", "path": "language/expressions/types" },
+      {
+        "title": "Strings and Templates",
+        "path": "language/expressions/strings"
+      },
+      {
+        "title": "References to Values",
+        "path": "language/expressions/references"
+      },
+      { "title": "Operators", "path": "language/expressions/operators" },
+      {
+        "title": "Function Calls",
+        "path": "language/expressions/function-calls"
+      },
+      {
+        "title": "Conditional Expressions",
+        "path": "language/expressions/conditionals"
+      },
+      { "title": "For Expressions", "path": "language/expressions/for" },
+      {
+        "title": "Splat Expressions",
+        "path": "language/expressions/splat"
+      },
+
+      {
+        "title": "Dynamic Blocks",
+        "path": "language/expressions/dynamic-blocks"
+      },
+      {
+        "title": "Custom Conditions",
+        "path": "language/expressions/custom-conditions"
+      },
+      {
+        "title": "Type Constraints",
+        "path": "language/expressions/type-constraints"
+      },
+      {
+        "title": "Version Constraints",
+        "path": "language/expressions/version-constraints"
+      }
+    ]
+  },
+  {
+    "title": "Functions",
+    "routes": [
+      { "title": "Overview", "path": "language/functions/index" },
+      {
+        "title": "Numeric Functions",
+        "routes": [
+          { "title": "<code>abs</code>", "path": "language/functions/abs" },
+          { "title": "<code>ceil</code>", "path": "language/functions/ceil" },
+          {
+            "title": "<code>floor</code>",
+            "path": "language/functions/floor"
+          },
+          { "title": "<code>log</code>", "path": "language/functions/log" },
+          { "title": "<code>max</code>", "path": "language/functions/max" },
+          { "title": "<code>min</code>", "path": "language/functions/min" },
+          {
+            "title": "<code>parseint</code>",
+            "path": "language/functions/parseint"
+          },
+          { "title": "<code>pow</code>", "path": "language/functions/pow" },
+          {
+            "title": "<code>signum</code>",
+            "path": "language/functions/signum"
+          }
+        ]
+      },
+      {
+        "title": "String Functions",
+        "routes": [
+          {
+            "title": "<code>chomp</code>",
+            "path": "language/functions/chomp"
+          },
+          {
+            "title": "<code>endswith</code>",
+            "path": "language/functions/endswith"
+          },
+          {
+            "title": "<code>format</code>",
+            "path": "language/functions/format"
+          },
+          {
+            "title": "<code>formatlist</code>",
+            "path": "language/functions/formatlist"
+          },
+          {
+            "title": "<code>indent</code>",
+            "path": "language/functions/indent"
+          },
+          { "title": "<code>join</code>", "path": "language/functions/join" },
+          {
+            "title": "<code>lower</code>",
+            "path": "language/functions/lower"
+          },
+          {
+            "title": "<code>regex</code>",
+            "path": "language/functions/regex"
+          },
+          {
+            "title": "<code>regexall</code>",
+            "path": "language/functions/regexall"
+          },
+          {
+            "title": "<code>replace</code>",
+            "path": "language/functions/replace"
+          },
+          {
+            "title": "<code>split</code>",
+            "path": "language/functions/split"
+          },
+          {
+            "title": "<code>startswith</code>",
+            "path": "language/functions/startswith"
+          },
+          {
+            "title": "<code>strcontains</code>",
+            "path": "language/functions/strcontains"
+          },
+          {
+            "title": "<code>strrev</code>",
+            "path": "language/functions/strrev"
+          },
+          {
+            "title": "<code>substr</code>",
+            "path": "language/functions/substr"
+          },
+          {
+            "title": "<code>title</code>",
+            "path": "language/functions/title"
+          },
+          { "title": "<code>trim</code>", "path": "language/functions/trim" },
+          {
+            "title": "<code>trimprefix</code>",
+            "path": "language/functions/trimprefix"
+          },
+          {
+            "title": "<code>trimsuffix</code>",
+            "path": "language/functions/trimsuffix"
+          },
+          {
+            "title": "<code>trimspace</code>",
+            "path": "language/functions/trimspace"
+          },
+          { "title": "<code>upper</code>", "path": "language/functions/upper" }
+        ]
+      },
+      {
+        "title": "Collection Functions",
+        "routes": [
+          {
+            "title": "<code>alltrue</code>",
+            "path": "language/functions/alltrue"
+          },
+          {
+            "title": "<code>anytrue</code>",
+            "path": "language/functions/anytrue"
+          },
+          {
+            "title": "<code>chunklist</code>",
+            "path": "language/functions/chunklist"
+          },
+          {
+            "title": "<code>coalesce</code>",
+            "path": "language/functions/coalesce"
+          },
+          {
+            "title": "<code>coalescelist</code>",
+            "path": "language/functions/coalescelist"
+          },
+          {
+            "title": "<code>compact</code>",
+            "path": "language/functions/compact"
+          },
+          {
+            "title": "<code>concat</code>",
+            "path": "language/functions/concat"
+          },
+          {
+            "title": "<code>contains</code>",
+            "path": "language/functions/contains"
+          },
+          {
+            "title": "<code>distinct</code>",
+            "path": "language/functions/distinct"
+          },
+          {
+            "title": "<code>element</code>",
+            "path": "language/functions/element"
+          },
+          {
+            "title": "<code>flatten</code>",
+            "path": "language/functions/flatten"
+          },
+          {
+            "title": "<code>index</code>",
+            "path": "language/functions/index_function"
+          },
+          { "title": "<code>keys</code>", "path": "language/functions/keys" },
+          {
+            "title": "<code>length</code>",
+            "path": "language/functions/length"
+          },
+          {
+            "title": "<code>lookup</code>",
+            "path": "language/functions/lookup"
+          },
+          {
+            "title": "<code>matchkeys</code>",
+            "path": "language/functions/matchkeys"
+          },
+          {
+            "title": "<code>merge</code>",
+            "path": "language/functions/merge"
+          },
+          { "title": "<code>one</code>", "path": "language/functions/one" },
+          {
+            "title": "<code>range</code>",
+            "path": "language/functions/range"
+          },
+          {
+            "title": "<code>reverse</code>",
+            "path": "language/functions/reverse"
+          },
+          {
+            "title": "<code>setintersection</code>",
+            "path": "language/functions/setintersection"
+          },
+          {
+            "title": "<code>setproduct</code>",
+            "path": "language/functions/setproduct"
+          },
+          {
+            "title": "<code>setsubtract</code>",
+            "path": "language/functions/setsubtract"
+          },
+          {
+            "title": "<code>setunion</code>",
+            "path": "language/functions/setunion"
+          },
+          {
+            "title": "<code>slice</code>",
+            "path": "language/functions/slice"
+          },
+          { "title": "<code>sort</code>", "path": "language/functions/sort" },
+          { "title": "<code>sum</code>", "path": "language/functions/sum" },
+          {
+            "title": "<code>transpose</code>",
+            "path": "language/functions/transpose"
+          },
+          {
+            "title": "<code>values</code>",
+            "path": "language/functions/values"
+          },
+          {
+            "title": "<code>zipmap</code>",
+            "path": "language/functions/zipmap"
+          }
+        ]
+      },
+      {
+        "title": "Encoding Functions",
+        "routes": [
+          {
+            "title": "<code>base64decode</code>",
+            "path": "language/functions/base64decode"
+          },
+          {
+            "title": "<code>base64encode</code>",
+            "path": "language/functions/base64encode"
+          },
+          {
+            "title": "<code>base64gzip</code>",
+            "path": "language/functions/base64gzip"
+          },
+          {
+            "title": "<code>csvdecode</code>",
+            "path": "language/functions/csvdecode"
+          },
+          {
+            "title": "<code>base64gunzip</code>",
+            "path": "language/functions/base64gunzip"
+          },
+          {
+            "title": "<code>jsondecode</code>",
+            "path": "language/functions/jsondecode"
+          },
+          {
+            "title": "<code>jsonencode</code>",
+            "path": "language/functions/jsonencode"
+          },
+          {
+            "title": "<code>textdecodebase64</code>",
+            "path": "language/functions/textdecodebase64"
+          },
+          {
+            "title": "<code>textencodebase64</code>",
+            "path": "language/functions/textencodebase64"
+          },
+          {
+            "title": "<code>urlencode</code>",
+            "path": "language/functions/urlencode"
+          },
+          {
+            "title": "<code>urldecode</code>",
+            "path": "language/functions/urldecode"
+          },
+          {
+            "title": "<code>yamldecode</code>",
+            "path": "language/functions/yamldecode"
+          },
+          {
+            "title": "<code>yamlencode</code>",
+            "path": "language/functions/yamlencode"
+          }
+        ]
+      },
+      {
+        "title": "Filesystem Functions",
+        "routes": [
+          {
+            "title": "<code>abspath</code>",
+            "path": "language/functions/abspath"
+          },
+          {
+            "title": "<code>dirname</code>",
+            "path": "language/functions/dirname"
+          },
+          {
+            "title": "<code>pathexpand</code>",
+            "path": "language/functions/pathexpand"
+          },
+          {
+            "title": "<code>basename</code>",
+            "path": "language/functions/basename"
+          },
+          { "title": "<code>file</code>", "path": "language/functions/file" },
+          {
+            "title": "<code>fileexists</code>",
+            "path": "language/functions/fileexists"
+          },
+          {
+            "title": "<code>fileset</code>",
+            "path": "language/functions/fileset"
+          },
+          {
+            "title": "<code>filebase64</code>",
+            "path": "language/functions/filebase64"
+          },
+          {
+            "title": "<code>templatefile</code>",
+            "path": "language/functions/templatefile"
+          }
+        ]
+      },
+      {
+        "title": "Date and Time Functions",
+        "routes": [
+          {
+            "title": "<code>formatdate</code>",
+            "path": "language/functions/formatdate"
+          },
+          {
+            "title": "<code>plantimestamp</code>",
+            "path": "language/functions/plantimestamp"
+          },
+          {
+            "title": "<code>timeadd</code>",
+            "path": "language/functions/timeadd"
+          },
+          {
+            "title": "<code>timecmp</code>",
+            "path": "language/functions/timecmp"
+          },
+          {
+            "title": "<code>timestamp</code>",
+            "path": "language/functions/timestamp"
+          }
+        ]
+      },
+      {
+        "title": "Hash and Crypto Functions",
+        "routes": [
+          {
+            "title": "<code>base64sha256</code>",
+            "path": "language/functions/base64sha256"
+          },
+          {
+            "title": "<code>base64sha512</code>",
+            "path": "language/functions/base64sha512"
+          },
+          {
+            "title": "<code>bcrypt</code>",
+            "path": "language/functions/bcrypt"
+          },
+          {
+            "title": "<code>filebase64sha256</code>",
+            "path": "language/functions/filebase64sha256"
+          },
+          {
+            "title": "<code>filebase64sha512</code>",
+            "path": "language/functions/filebase64sha512"
+          },
+          {
+            "title": "<code>filemd5</code>",
+            "path": "language/functions/filemd5"
+          },
+          {
+            "title": "<code>filesha1</code>",
+            "path": "language/functions/filesha1"
+          },
+          {
+            "title": "<code>filesha256</code>",
+            "path": "language/functions/filesha256"
+          },
+          {
+            "title": "<code>filesha512</code>",
+            "path": "language/functions/filesha512"
+          },
+          { "title": "<code>md5</code>", "path": "language/functions/md5" },
+          {
+            "title": "<code>rsadecrypt</code>",
+            "path": "language/functions/rsadecrypt"
+          },
+          { "title": "<code>sha1</code>", "path": "language/functions/sha1" },
+          {
+            "title": "<code>sha256</code>",
+            "path": "language/functions/sha256"
+          },
+          {
+            "title": "<code>sha512</code>",
+            "path": "language/functions/sha512"
+          },
+          { "title": "<code>uuid</code>", "path": "language/functions/uuid" },
+          {
+            "title": "<code>uuidv5</code>",
+            "path": "language/functions/uuidv5"
+          }
+        ]
+      },
+      {
+        "title": "IP Network Functions",
+        "routes": [
+          {
+            "title": "<code>cidrcontains</code>",
+            "path": "language/functions/cidrcontains"
+          },
+          {
+            "title": "<code>cidrhost</code>",
+            "path": "language/functions/cidrhost"
+          },
+          {
+            "title": "<code>cidrnetmask</code>",
+            "path": "language/functions/cidrnetmask"
+          },
+          {
+            "title": "<code>cidrsubnet</code>",
+            "path": "language/functions/cidrsubnet"
+          },
+          {
+            "title": "<code>cidrsubnets</code>",
+            "path": "language/functions/cidrsubnets"
+          }
+        ]
+      },
+      {
+        "title": "Type Conversion Functions",
+        "routes": [
+          { "title": "<code>can</code>", "path": "language/functions/can" },
+          {
+            "title": "<code>nonsensitive</code>",
+            "path": "language/functions/nonsensitive"
+          },
+          {
+            "title": "<code>sensitive</code>",
+            "path": "language/functions/sensitive"
+          },
+          {
+            "title": "<code>issensitive</code>",
+            "path": "language/functions/issensitive",
+          },
+          {
+            "title": "<code>tobool</code>",
+            "path": "language/functions/tobool"
+          },
+          {
+            "title": "<code>tolist</code>",
+            "path": "language/functions/tolist"
+          },
+          {
+            "title": "<code>tomap</code>",
+            "path": "language/functions/tomap"
+          },
+          {
+            "title": "<code>tonumber</code>",
+            "path": "language/functions/tonumber"
+          },
+          {
+            "title": "<code>toset</code>",
+            "path": "language/functions/toset"
+          },
+          {
+            "title": "<code>tostring</code>",
+            "path": "language/functions/tostring"
+          },
+          { "title": "<code>try</code>", "path": "language/functions/try" },
+          { "title": "<code>type</code>", "path": "language/functions/type" }
+        ]
+      },
+      { "title": "abs", "path": "language/functions/abs", "hidden": true },
+      {
+        "title": "abspath",
+        "path": "language/functions/abspath",
+        "hidden": true
+      },
+      {
+        "title": "alltrue",
+        "path": "language/functions/alltrue",
+        "hidden": true
+      },
+      {
+        "title": "anytrue",
+        "path": "language/functions/anytrue",
+        "hidden": true
+      },
+      {
+        "title": "base64decode",
+        "path": "language/functions/base64decode",
+        "hidden": true
+      },
+      {
+        "title": "base64encode",
+        "path": "language/functions/base64encode",
+        "hidden": true
+      },
+      {
+        "title": "base64gzip",
+        "path": "language/functions/base64gzip",
+        "hidden": true
+      },
+      {
+        "title": "base64sha256",
+        "path": "language/functions/base64sha256",
+        "hidden": true
+      },
+      {
+        "title": "base64sha512",
+        "path": "language/functions/base64sha512",
+        "hidden": true
+      },
+      {
+        "title": "basename",
+        "path": "language/functions/basename",
+        "hidden": true
+      },
+      {
+        "title": "bcrypt",
+        "path": "language/functions/bcrypt",
+        "hidden": true
+      },
+      { "title": "can", "path": "language/functions/can", "hidden": true },
+      { "title": "ceil", "path": "language/functions/ceil", "hidden": true },
+      { "title": "chomp", "path": "language/functions/chomp", "hidden": true },
+      {
+        "title": "chunklist",
+        "path": "language/functions/chunklist",
+        "hidden": true
+      },
+      {
+        "title": "cidrhost",
+        "path": "language/functions/cidrhost",
+        "hidden": true
+      },
+      {
+        "title": "cidrnetmask",
+        "path": "language/functions/cidrnetmask",
+        "hidden": true
+      },
+      {
+        "title": "cidrsubnet",
+        "path": "language/functions/cidrsubnet",
+        "hidden": true
+      },
+      {
+        "title": "cidrsubnets",
+        "path": "language/functions/cidrsubnets",
+        "hidden": true
+      },
+      {
+        "title": "coalesce",
+        "path": "language/functions/coalesce",
+        "hidden": true
+      },
+      {
+        "title": "coalescelist",
+        "path": "language/functions/coalescelist",
+        "hidden": true
+      },
+      {
+        "title": "compact",
+        "path": "language/functions/compact",
+        "hidden": true
+      },
+      {
+        "title": "concat",
+        "path": "language/functions/concat",
+        "hidden": true
+      },
+      {
+        "title": "contains",
+        "path": "language/functions/contains",
+        "hidden": true
+      },
+      {
+        "title": "csvdecode",
+        "path": "language/functions/csvdecode",
+        "hidden": true
+      },
+      {
+        "title": "dirname",
+        "path": "language/functions/dirname",
+        "hidden": true
+      },
+      {
+        "title": "distinct",
+        "path": "language/functions/distinct",
+        "hidden": true
+      },
+      {
+        "title": "element",
+        "path": "language/functions/element",
+        "hidden": true
+      },
+      {
+        "title": "endswith",
+        "path": "language/functions/endswith",
+        "hidden": true
+      },
+      { "title": "file", "path": "language/functions/file", "hidden": true },
+      {
+        "title": "filebase64",
+        "path": "language/functions/filebase64",
+        "hidden": true
+      },
+      {
+        "title": "filebase64sha256",
+        "path": "language/functions/filebase64sha256",
+        "hidden": true
+      },
+      {
+        "title": "filebase64sha512",
+        "path": "language/functions/filebase64sha512",
+        "hidden": true
+      },
+      {
+        "title": "fileexists",
+        "path": "language/functions/fileexists",
+        "hidden": true
+      },
+      {
+        "title": "filemd5",
+        "path": "language/functions/filemd5",
+        "hidden": true
+      },
+      {
+        "title": "fileset",
+        "path": "language/functions/fileset",
+        "hidden": true
+      },
+      {
+        "title": "filesha1",
+        "path": "language/functions/filesha1",
+        "hidden": true
+      },
+      {
+        "title": "filesha256",
+        "path": "language/functions/filesha256",
+        "hidden": true
+      },
+      {
+        "title": "filesha512",
+        "path": "language/functions/filesha512",
+        "hidden": true
+      },
+      {
+        "title": "flatten",
+        "path": "language/functions/flatten",
+        "hidden": true
+      },
+      { "title": "floor", "path": "language/functions/floor", "hidden": true },
+      {
+        "title": "format",
+        "path": "language/functions/format",
+        "hidden": true
+      },
+      {
+        "title": "formatdate",
+        "path": "language/functions/formatdate",
+        "hidden": true
+      },
+      {
+        "title": "formatlist",
+        "path": "language/functions/formatlist",
+        "hidden": true
+      },
+      {
+        "title": "base64gunzip",
+        "path": "language/functions/base64gunzip",
+        "hidden": true
+      },
+      {
+        "title": "indent",
+        "path": "language/functions/indent",
+        "hidden": true
+      },
+      {
+        "title": "index",
+        "path": "language/functions/index_function",
+        "hidden": true
+      },
+      {
+        "title": "issensitive",
+        "path": "language/functions/issensitive",
+        "hidden": true
+      },
+      { "title": "join", "path": "language/functions/join", "hidden": true },
+      {
+        "title": "jsondecode",
+        "path": "language/functions/jsondecode",
+        "hidden": true
+      },
+      {
+        "title": "jsonencode",
+        "path": "language/functions/jsonencode",
+        "hidden": true
+      },
+      { "title": "keys", "path": "language/functions/keys", "hidden": true },
+      {
+        "title": "length",
+        "path": "language/functions/length",
+        "hidden": true
+      },
+      { "title": "list", "path": "language/functions/list", "hidden": true },
+      { "title": "log", "path": "language/functions/log", "hidden": true },
+      {
+        "title": "lookup",
+        "path": "language/functions/lookup",
+        "hidden": true
+      },
+      { "title": "lower", "path": "language/functions/lower", "hidden": true },
+      { "title": "map", "path": "language/functions/map", "hidden": true },
+      {
+        "title": "matchkeys",
+        "path": "language/functions/matchkeys",
+        "hidden": true
+      },
+      { "title": "max", "path": "language/functions/max", "hidden": true },
+      { "title": "md5", "path": "language/functions/md5", "hidden": true },
+      { "title": "merge", "path": "language/functions/merge", "hidden": true },
+      { "title": "min", "path": "language/functions/min", "hidden": true },
+      {
+        "title": "nonsensitive",
+        "path": "language/functions/nonsensitive",
+        "hidden": true
+      },
+      { "title": "one", "path": "language/functions/one", "hidden": true },
+      {
+        "title": "parseint",
+        "path": "language/functions/parseint",
+        "hidden": true
+      },
+      {
+        "title": "pathexpand",
+        "path": "language/functions/pathexpand",
+        "hidden": true
+      },
+      {
+        "title": "plantimestamp",
+        "path": "language/functions/plantimestamp",
+        "hidden": true
+      },
+      { "title": "pow", "path": "language/functions/pow", "hidden": true },
+      { "title": "range", "path": "language/functions/range", "hidden": true },
+      { "title": "regex", "path": "language/functions/regex", "hidden": true },
+      {
+        "title": "regexall",
+        "path": "language/functions/regexall",
+        "hidden": true
+      },
+      {
+        "title": "replace",
+        "path": "language/functions/replace",
+        "hidden": true
+      },
+      {
+        "title": "reverse",
+        "path": "language/functions/reverse",
+        "hidden": true
+      },
+      {
+        "title": "rsadecrypt",
+        "path": "language/functions/rsadecrypt",
+        "hidden": true
+      },
+      {
+        "title": "sensitive",
+        "path": "language/functions/sensitive",
+        "hidden": true
+      },
+      {
+        "title": "setintersection",
+        "path": "language/functions/setintersection",
+        "hidden": true
+      },
+      {
+        "title": "setproduct",
+        "path": "language/functions/setproduct",
+        "hidden": true
+      },
+      {
+        "title": "setsubtract",
+        "path": "language/functions/setsubtract",
+        "hidden": true
+      },
+      {
+        "title": "setunion",
+        "path": "language/functions/setunion",
+        "hidden": true
+      },
+      { "title": "sha1", "path": "language/functions/sha1", "hidden": true },
+      {
+        "title": "sha256",
+        "path": "language/functions/sha256",
+        "hidden": true
+      },
+      {
+        "title": "sha512",
+        "path": "language/functions/sha512",
+        "hidden": true
+      },
+      {
+        "title": "signum",
+        "path": "language/functions/signum",
+        "hidden": true
+      },
+      { "title": "slice", "path": "language/functions/slice", "hidden": true },
+      { "title": "sort", "path": "language/functions/sort", "hidden": true },
+      { "title": "split", "path": "language/functions/split", "hidden": true },
+      {
+        "title": "startswith",
+        "path": "language/functions/startswith",
+        "hidden": true
+      },
+      {
+        "title": "strcontains",
+        "path": "language/functions/strcontains",
+        "hidden": true
+      },
+      {
+        "title": "strrev",
+        "path": "language/functions/strrev",
+        "hidden": true
+      },
+      {
+        "title": "substr",
+        "path": "language/functions/substr",
+        "hidden": true
+      },
+      { "title": "sum", "path": "language/functions/sum", "hidden": true },
+      {
+        "title": "templatefile",
+        "path": "language/functions/templatefile",
+        "hidden": true
+      },
+      {
+        "title": "templatestring",
+        "path": "language/functions/templatestring",
+        "hidden": true
+      },
+      {
+        "title": "textdecodebase64",
+        "path": "language/functions/textdecodebase64",
+        "hidden": true
+      },
+      {
+        "title": "textencodebase64",
+        "path": "language/functions/textencodebase64",
+        "hidden": true
+      },
+      {
+        "title": "timeadd",
+        "path": "language/functions/timeadd",
+        "hidden": true
+      },
+      {
+        "title": "timecmp",
+        "path": "language/functions/timecmp",
+        "hidden": true
+      },
+      {
+        "title": "timestamp",
+        "path": "language/functions/timestamp",
+        "hidden": true
+      },
+      { "title": "title", "path": "language/functions/title", "hidden": true },
+      {
+        "title": "tobool",
+        "path": "language/functions/tobool",
+        "hidden": true
+      },
+      {
+        "title": "tolist",
+        "path": "language/functions/tolist",
+        "hidden": true
+      },
+      { "title": "tomap", "path": "language/functions/tomap", "hidden": true },
+      {
+        "title": "tonumber",
+        "path": "language/functions/tonumber",
+        "hidden": true
+      },
+      { "title": "toset", "path": "language/functions/toset", "hidden": true },
+      {
+        "title": "tostring",
+        "path": "language/functions/tostring",
+        "hidden": true
+      },
+      {
+        "title": "transpose",
+        "path": "language/functions/transpose",
+        "hidden": true
+      },
+      { "title": "trim", "path": "language/functions/trim", "hidden": true },
+      {
+        "title": "trimprefix",
+        "path": "language/functions/trimprefix",
+        "hidden": true
+      },
+      {
+        "title": "trimspace",
+        "path": "language/functions/trimspace",
+        "hidden": true
+      },
+      {
+        "title": "trimsuffix",
+        "path": "language/functions/trimsuffix",
+        "hidden": true
+      },
+      { "title": "try", "path": "language/functions/try", "hidden": true },
+      { "title": "type", "path": "language/functions/type", "hidden": true },
+      { "title": "upper", "path": "language/functions/upper", "hidden": true },
+      {
+        "title": "urlencode",
+        "path": "language/functions/urlencode",
+        "hidden": true
+      },      
+      {
+        "title": "urldecode",
+        "path": "language/functions/urldecode",
+        "hidden": true
+      },
+      { "title": "uuid", "path": "language/functions/uuid", "hidden": true },
+      {
+        "title": "uuidv5",
+        "path": "language/functions/uuidv5",
+        "hidden": true
+      },
+      {
+        "title": "values",
+        "path": "language/functions/values",
+        "hidden": true
+      },
+      {
+        "title": "yamldecode",
+        "path": "language/functions/yamldecode",
+        "hidden": true
+      },
+      {
+        "title": "yamlencode",
+        "path": "language/functions/yamlencode",
+        "hidden": true
+      },
+      { "title": "zipmap", "path": "language/functions/zipmap", "hidden": true }
+    ]
+  },
+  {
+    "title": "OpenTofu Settings",
+    "routes": [
+      { "title": "Overview", "path": "language/settings/index" },
+      {
+        "title": "Backends",
+        "routes": [
+          {
+            "title": "Backend Configuration",
+            "path": "language/settings/backends/configuration"
+          },
+          {
+            "title": "Available Backends",
+            "routes": [
+              {
+                "title": "local",
+                "path": "language/settings/backends/local"
+              },
+              {
+                "title": "remote",
+                "path": "language/settings/backends/remote"
+              },
+              {
+                "title": "azurerm",
+                "path": "language/settings/backends/azurerm"
+              },
+              {
+                "title": "consul",
+                "path": "language/settings/backends/consul"
+              },
+              {
+                "title": "cos",
+                "path": "language/settings/backends/cos"
+              },
+              {
+                "title": "gcs",
+                "path": "language/settings/backends/gcs"
+              },
+              {
+                "title": "http",
+                "path": "language/settings/backends/http"
+              },
+              {
+                "title": "Kubernetes",
+                "path": "language/settings/backends/kubernetes"
+              },
+              {
+                "title": "oss",
+                "path": "language/settings/backends/oss"
+              },
+              {
+                "title": "pg",
+                "path": "language/settings/backends/pg"
+              },
+              {
+                "title": "s3",
+                "path": "language/settings/backends/s3"
+              }
+            ]
+          },
+          {
+            "title": "local",
+            "hidden": true,
+            "path": "language/settings/backends/local"
+          },
+          {
+            "title": "remote",
+            "hidden": true,
+            "path": "language/settings/backends/remote"
+          },
+          {
+            "title": "azurerm",
+            "hidden": true,
+            "path": "language/settings/backends/azurerm"
+          },
+          {
+            "title": "consul",
+            "hidden": true,
+            "path": "language/settings/backends/consul"
+          },
+          {
+            "title": "cos",
+            "hidden": true,
+            "path": "language/settings/backends/cos"
+          },
+          {
+            "title": "gcs",
+            "hidden": true,
+            "path": "language/settings/backends/gcs"
+          },
+          {
+            "title": "http",
+            "hidden": true,
+            "path": "language/settings/backends/http"
+          },
+          {
+            "title": "Kubernetes",
+            "hidden": true,
+            "path": "language/settings/backends/kubernetes"
+          },
+          {
+            "title": "oss",
+            "hidden": true,
+            "path": "language/settings/backends/oss"
+          },
+          {
+            "title": "pg",
+            "hidden": true,
+            "path": "language/settings/backends/pg"
+          },
+          {
+            "title": "s3",
+            "hidden": true,
+            "path": "language/settings/backends/s3"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "title": "State",
+    "routes": [
+      { "title": "Overview", "path": "language/state/index" },
+      { "title": "Purpose", "path": "language/state/purpose" },
+      {
+        "title": "The <code>terraform_remote_state</code> Data Source",
+        "path": "language/state/remote-state-data"
+      },
+      {
+        "title": "Backends: State Storage and Locking",
+        "path": "language/state/backends"
+      },
+      {
+        "title": "Import Existing Resources",
+        "path": "language/state/import"
+      },
+      { "title": "Locking", "path": "language/state/locking" },
+      { "title": "Workspaces", "path": "language/state/workspaces" },
+      { "title": "Remote State", "path": "language/state/remote" },
+      {
+        "title": "Sensitive Data",
+        "path": "language/state/sensitive-data"
+      }
+    ]
+  },
+  {
+    "title": "Upgrading to OpenTofu v1.5",
+    "path": "language/upgrade-guides/index"
+  },
+  {
+    "title": "v1.x Compatibility Promises",
+    "path": "language/v1-compatibility-promises"
+  }
+]

@@ -1,0 +1,25 @@
+---
+description: >-
+  Documentation about the login and logout commands that help automate getting
+  an API token for your cloud backend account.
+---
+
+# CLI Authentication
+
+TACOS (TF Automation and Collaboration Software) are platforms that perform as part of their
+offering OpenTofu runs to provision infrastructure, offering a collaboration-focused
+environment that makes it easier for teams to use OpenTofu together.
+
+OpenTofu CLI integrates with TACOS in several ways — it can be a
+front-end for CLI-driven runs, and can also use some TACOS as a state backend, a private module
+registry, or a private provider registry. All of these integrations require you to authenticate OpenTofu CLI
+with your TACOS account.
+
+The best way to handle CLI authentication is with the `login` and `logout`
+commands, which help automate the process of getting an API token for your
+TACOS user account.
+
+For details, see:
+
+- [The `tofu login` command](../commands/login.mdx)
+- [The `tofu logout` command](../commands/logout.mdx)
