@@ -15,7 +15,7 @@ import (
 	"github.com/opentofu/opentofu/internal/tfdiags"
 )
 
-// ProvidersCommand is a Command implementation that prints out information
+// ProvidersSchemaCommand is a Command implementation that prints out information
 // about the providers used in the current configuration/state.
 type ProvidersSchemaCommand struct {
 	Meta
@@ -32,6 +32,7 @@ func (c *ProvidersSchemaCommand) Synopsis() string {
 func (c *ProvidersSchemaCommand) Run(args []string) int {
 	args = c.Meta.process(args)
 	cmdFlags := c.Meta.defaultFlagSet("providers schema")
+	c.Meta.varFlagSet(cmdFlags)
 	var jsonOutput bool
 	cmdFlags.BoolVar(&jsonOutput, "json", false, "produce JSON output")
 
@@ -94,6 +95,14 @@ func (c *ProvidersSchemaCommand) Run(args []string) int {
 	opReq := c.Operation(b, arguments.ViewJSON, enc)
 	opReq.ConfigDir = cwd
 	opReq.ConfigLoader, err = c.initConfigLoader()
+	var callDiags tfdiags.Diagnostics
+	opReq.RootCall, callDiags = c.rootModuleCall(opReq.ConfigDir)
+	diags = diags.Append(callDiags)
+	if callDiags.HasErrors() {
+		c.showDiagnostics(diags)
+		return 1
+	}
+
 	opReq.AllowUnsetVariables = true
 	if err != nil {
 		diags = diags.Append(err)
@@ -131,4 +140,15 @@ Usage: tofu [global options] providers schema -json
 
   Prints out a json representation of the schemas for all providers used 
   in the current configuration.
+
+Options:
+
+  -var 'foo=bar'     Set a value for one of the input variables in the root
+                     module of the configuration. Use this option more than
+                     once to set more than one variable.
+
+  -var-file=filename Load variable values from the given file, in addition
+                     to the default files terraform.tfvars and *.auto.tfvars.
+                     Use this option more than once to include more than one
+                     variables file.
 `

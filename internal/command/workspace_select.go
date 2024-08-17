@@ -26,6 +26,7 @@ func (c *WorkspaceSelectCommand) Run(args []string) int {
 
 	var orCreate bool
 	cmdFlags := c.Meta.defaultFlagSet("workspace select")
+	c.Meta.varFlagSet(cmdFlags)
 	cmdFlags.BoolVar(&orCreate, "or-create", false, "create workspace if it does not exist")
 	cmdFlags.Usage = func() { c.Ui.Error(c.Help()) }
 	if err := cmdFlags.Parse(args); err != nil {
@@ -168,6 +169,14 @@ Options:
 
     -or-create=false    Create the OpenTofu workspace if it doesn't exist.
 
+    -var 'foo=bar'      Set a value for one of the input variables in the root
+                        module of the configuration. Use this option more than
+                        once to set more than one variable.
+
+    -var-file=filename  Load variable values from the given file, in addition
+                        to the default files terraform.tfvars and *.auto.tfvars.
+                        Use this option more than once to include more than one
+                        variables file.
 `
 	return strings.TrimSpace(helpText)
 }

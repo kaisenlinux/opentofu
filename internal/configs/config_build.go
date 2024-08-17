@@ -7,7 +7,7 @@ package configs
 
 import (
 	"fmt"
-	"path"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -64,8 +64,8 @@ func buildTestModules(root *Config, walker ModuleWalker) hcl.Diagnostics {
 			//    - file: main.tftest.hcl, run: setup - test.main.setup
 			//    - file: tests/main.tftest.hcl, run: setup - test.tests.main.setup
 
-			dir := path.Dir(name)
-			base := path.Base(name)
+			dir := filepath.Dir(name)
+			base := filepath.Base(name)
 
 			path := addrs.Module{}
 			path = append(path, "test")
@@ -73,7 +73,6 @@ func buildTestModules(root *Config, walker ModuleWalker) hcl.Diagnostics {
 				path = append(path, strings.Split(dir, "/")...)
 			}
 			path = append(path, strings.TrimSuffix(base, ".tftest.hcl"), run.Name)
-
 			req := ModuleRequest{
 				Name:              run.Name,
 				Path:              path,
@@ -139,10 +138,14 @@ func buildChildModules(parent *Config, walker ModuleWalker) (map[string]*Config,
 			Name:              call.Name,
 			Path:              path,
 			SourceAddr:        call.SourceAddr,
-			SourceAddrRange:   call.SourceAddrRange,
 			VersionConstraint: call.Version,
 			Parent:            parent,
 			CallRange:         call.DeclRange,
+			Call:              NewStaticModuleCall(path, call.Variables, parent.Root.Module.SourceDir, call.Workspace),
+		}
+		if call.Source != nil {
+			// Invalid modules sometimes have a nil source field which is handled through loadModule below
+			req.SourceAddrRange = call.Source.Range()
 		}
 		child, modDiags := loadModule(parent.Root, &req, walker)
 		diags = append(diags, modDiags...)
@@ -299,6 +302,10 @@ type ModuleRequest struct {
 	// subject of an error diagnostic that relates to the module call itself,
 	// rather than to either its source address or its version number.
 	CallRange hcl.Range
+
+	// This is where variables and other information from the calling module
+	// are propogated to the child module for use in the static evaluator
+	Call StaticModuleCall
 }
 
 // DisabledModuleWalker is a ModuleWalker that doesn't support

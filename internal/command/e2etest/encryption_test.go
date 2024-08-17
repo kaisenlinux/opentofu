@@ -1,3 +1,8 @@
+// Copyright (c) The OpenTofu Authors
+// SPDX-License-Identifier: MPL-2.0
+// Copyright (c) 2023 HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
 package e2etest
 
 import (
@@ -44,6 +49,14 @@ func (r tofuResult) StderrContains(msg string) tofuResult {
 	if !strings.Contains(r.stderr, msg) {
 		debug.PrintStack()
 		r.t.Fatalf("expected stderr output %q:\n%s", msg, r.stderr)
+	}
+	return r
+}
+
+func (r tofuResult) Contains(msg string) tofuResult {
+	if !strings.Contains(r.stdout, msg) {
+		debug.PrintStack()
+		r.t.Fatalf("expected output %q:\n%s", msg, r.stdout)
 	}
 	return r
 }

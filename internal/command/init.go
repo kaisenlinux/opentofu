@@ -703,7 +703,7 @@ func (c *InitCommand) getProviders(ctx context.Context, config *configs.Config, 
 				}
 
 				if provider.Hostname == addrs.DefaultProviderRegistryHost {
-					suggestion += "\n\nIf you believe this provider is missing from the registry, please submit a issue on the OpenTofu Registry https://github.com/opentofu/registry/issues/"
+					suggestion += "\n\nIf you believe this provider is missing from the registry, please submit a issue on the OpenTofu Registry https://github.com/opentofu/registry/issues/new/choose"
 				}
 
 				diags = diags.Append(tfdiags.Sourceless(
@@ -1249,6 +1249,15 @@ Options:
   -json                   Produce output in a machine-readable JSON format, 
                           suitable for use in text editor integrations and other 
                           automated systems. Always disables color.
+
+  -var 'foo=bar'          Set a value for one of the input variables in the root
+                          module of the configuration. Use this option more than
+                          once to set more than one variable.
+
+  -var-file=filename      Load variable values from the given file, in addition
+                          to the default files terraform.tfvars and *.auto.tfvars.
+                          Use this option more than once to include more than one
+                          variables file.
 
 `
 	return strings.TrimSpace(helpText)

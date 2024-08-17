@@ -35,6 +35,7 @@ func (c *WorkspaceNewCommand) Run(args []string) int {
 	var stateLockTimeout time.Duration
 	var statePath string
 	cmdFlags := c.Meta.defaultFlagSet("workspace new")
+	c.Meta.varFlagSet(cmdFlags)
 	cmdFlags.BoolVar(&stateLock, "lock", true, "lock state")
 	cmdFlags.DurationVar(&stateLockTimeout, "lock-timeout", 0, "lock timeout")
 	cmdFlags.StringVar(&statePath, "state", "", "tofu state file")
@@ -209,6 +210,15 @@ Options:
 
     -state=path         Copy an existing state file into the new workspace.
 
+
+    -var 'foo=bar'      Set a value for one of the input variables in the root
+                        module of the configuration. Use this option more than
+                        once to set more than one variable.
+
+    -var-file=filename  Load variable values from the given file, in addition
+                        to the default files terraform.tfvars and *.auto.tfvars.
+                        Use this option more than once to include more than one
+                        variables file.
 `
 	return strings.TrimSpace(helpText)
 }

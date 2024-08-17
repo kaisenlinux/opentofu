@@ -880,7 +880,37 @@ func (c *Config) CheckCoreVersionRequirements() hcl.Diagnostics {
 func (c *Config) TransformForTest(run *TestRun, file *TestFile) (func(), hcl.Diagnostics) {
 	var diags hcl.Diagnostics
 
-	// Currently, we only need to override the provider settings.
+	// These transformation functions must be in sync of what is being transformed,
+	// currently all the functions operate on different fields of configuration.
+	transformFuncs := []func(*TestRun, *TestFile) (func(), hcl.Diagnostics){
+		c.transformProviderConfigsForTest,
+		c.transformOverriddenResourcesForTest,
+		c.transformOverriddenModulesForTest,
+	}
+
+	var resetFuncs []func()
+
+	// We call each function to transform the configuration
+	// and gather transformation diags as well as reset functions.
+	for _, f := range transformFuncs {
+		resetFunc, moreDiags := f(run, file)
+		diags = append(diags, moreDiags...)
+		resetFuncs = append(resetFuncs, resetFunc)
+	}
+
+	// Order of calls doesn't matter as long as transformation functions
+	// don't operate on the same set of fields.
+	return func() {
+		for _, f := range resetFuncs {
+			f()
+		}
+	}, diags
+}
+
+func (c *Config) transformProviderConfigsForTest(run *TestRun, file *TestFile) (func(), hcl.Diagnostics) {
+	var diags hcl.Diagnostics
+
+	// We need to override the provider settings.
 	//
 	// We can have a set of providers defined within the config, we can also
 	// have a set of providers defined within the test file. Then the run can
@@ -896,8 +926,8 @@ func (c *Config) TransformForTest(run *TestRun, file *TestFile) (func(), hcl.Dia
 	//       doing this we ensure to preserve the name and alias from the
 	//       original config.
 	//   3b. If the run has no override configuration, we copy all the providers
-	//       from the test file into `next`, overriding all providers with name
-	//       collisions from the original config.
+	//       (including mocks) from the test file into `next`, overriding all providers
+	//       with name collisions from the original config.
 	//   4. We then modify the original configuration so that the providers it
 	//      holds are the combination specified by the original config, the test
 	//      file and the run file.
@@ -921,7 +951,7 @@ func (c *Config) TransformForTest(run *TestRun, file *TestFile) (func(), hcl.Dia
 
 		for _, ref := range run.Providers {
 
-			testProvider, ok := file.Providers[ref.InParent.String()]
+			testProvider, ok := file.getTestProviderOrMock(ref.InParent.String())
 			if !ok {
 				// Then this reference was invalid as we didn't have the
 				// specified provider in the parent. This should have been
@@ -936,13 +966,15 @@ func (c *Config) TransformForTest(run *TestRun, file *TestFile) (func(), hcl.Dia
 			}
 
 			next[ref.InChild.String()] = &Provider{
-				Name:       ref.InChild.Name,
-				NameRange:  ref.InChild.NameRange,
-				Alias:      ref.InChild.Alias,
-				AliasRange: ref.InChild.AliasRange,
-				Version:    testProvider.Version,
-				Config:     testProvider.Config,
-				DeclRange:  testProvider.DeclRange,
+				Name:          ref.InChild.Name,
+				NameRange:     ref.InChild.NameRange,
+				Alias:         ref.InChild.Alias,
+				AliasRange:    ref.InChild.AliasRange,
+				Version:       testProvider.Version,
+				Config:        testProvider.Config,
+				DeclRange:     testProvider.DeclRange,
+				IsMocked:      testProvider.IsMocked,
+				MockResources: testProvider.MockResources,
 			}
 
 		}
@@ -952,11 +984,207 @@ func (c *Config) TransformForTest(run *TestRun, file *TestFile) (func(), hcl.Dia
 		for key, provider := range file.Providers {
 			next[key] = provider
 		}
+		for _, mp := range file.MockProviders {
+			next[mp.moduleUniqueKey()] = &Provider{
+				Name:          mp.Name,
+				NameRange:     mp.NameRange,
+				Alias:         mp.Alias,
+				AliasRange:    mp.AliasRange,
+				DeclRange:     mp.DeclRange,
+				IsMocked:      true,
+				MockResources: mp.MockResources,
+			}
+		}
 	}
 
 	c.Module.ProviderConfigs = next
+
 	return func() {
 		// Reset the original config within the returned function.
 		c.Module.ProviderConfigs = previous
 	}, diags
+}
+
+func (c *Config) transformOverriddenResourcesForTest(run *TestRun, file *TestFile) (func(), hcl.Diagnostics) {
+	resources, diags := mergeOverriddenResources(run.OverrideResources, file.OverrideResources)
+
+	// We want to pass override values to resources being overridden.
+	for _, overrideRes := range resources {
+		targetConfig := c.Root.Descendent(overrideRes.TargetParsed.Module)
+		if targetConfig == nil {
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  fmt.Sprintf("Module not found: %v", overrideRes.TargetParsed.Module),
+				Detail:   "Target points to resource in undefined module. Please, ensure module exists.",
+				Subject:  overrideRes.Target.SourceRange().Ptr(),
+			})
+			continue
+		}
+
+		res := targetConfig.Module.ResourceByAddr(overrideRes.TargetParsed.Resource)
+		if res == nil {
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  fmt.Sprintf("Resource not found: %v", overrideRes.TargetParsed),
+				Detail:   "Target points to undefined resource. Please, ensure resource exists.",
+				Subject:  overrideRes.Target.SourceRange().Ptr(),
+			})
+			continue
+		}
+
+		if res.Mode != overrideRes.Mode {
+			blockName, targetMode := blockNameOverrideResource, "data"
+			if overrideRes.Mode == addrs.DataResourceMode {
+				blockName, targetMode = blockNameOverrideData, "resource"
+			}
+			// It could be a warning, but for the sake of consistent UX let's make it an error
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  fmt.Sprintf("Unsupported `%v` target in `%v` block", targetMode, blockName),
+				Detail: fmt.Sprintf("Target `%v` is `%v` block itself and cannot be overridden with `%v`.",
+					overrideRes.TargetParsed, targetMode, blockName),
+				Subject: overrideRes.Target.SourceRange().Ptr(),
+			})
+		}
+
+		res.IsOverridden = true
+		res.OverrideValues = overrideRes.Values
+	}
+
+	return func() {
+		// Reset all the overridden resources.
+		for _, o := range run.OverrideResources {
+			m := c.Root.Descendent(o.TargetParsed.Module)
+			if m == nil {
+				continue
+			}
+
+			res := m.Module.ResourceByAddr(o.TargetParsed.Resource)
+			if res == nil {
+				continue
+			}
+
+			res.IsOverridden = false
+			res.OverrideValues = nil
+		}
+	}, diags
+}
+
+func (c *Config) transformOverriddenModulesForTest(run *TestRun, file *TestFile) (func(), hcl.Diagnostics) {
+	modules, diags := mergeOverriddenModules(run.OverrideModules, file.OverrideModules)
+
+	for _, overrideMod := range modules {
+		targetConfig := c.Root.Descendent(overrideMod.TargetParsed)
+		if targetConfig == nil {
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  fmt.Sprintf("Module not found: %v", overrideMod.TargetParsed),
+				Detail:   "Target points to an undefined module. Please, ensure module exists.",
+				Subject:  overrideMod.Target.SourceRange().Ptr(),
+			})
+			continue
+		}
+
+		for overrideKey := range overrideMod.Outputs {
+			if _, ok := targetConfig.Module.Outputs[overrideKey]; !ok {
+				diags = append(diags, &hcl.Diagnostic{
+					Severity: hcl.DiagWarning,
+					Summary:  fmt.Sprintf("Output not found: %v", overrideKey),
+					Detail:   "Specified output to override is not present in the module and will be ignored.",
+					Subject:  overrideMod.Target.SourceRange().Ptr(),
+				})
+			}
+		}
+
+		targetConfig.Module.IsOverridden = true
+
+		for key, output := range targetConfig.Module.Outputs {
+			output.IsOverridden = true
+
+			// Override outputs are optional so it's okay to set IsOverridden with no OverrideValue.
+			if v, ok := overrideMod.Outputs[key]; ok {
+				output.OverrideValue = &v
+			}
+		}
+	}
+
+	return func() {
+		for _, overrideMod := range run.OverrideModules {
+			targetConfig := c.Root.Descendent(overrideMod.TargetParsed)
+			if targetConfig == nil {
+				continue
+			}
+
+			targetConfig.Module.IsOverridden = false
+
+			for _, output := range targetConfig.Module.Outputs {
+				output.IsOverridden = false
+				output.OverrideValue = nil
+			}
+		}
+	}, diags
+}
+
+func mergeOverriddenResources(runResources, fileResources []*OverrideResource) ([]*OverrideResource, hcl.Diagnostics) {
+	// resAddrsInRun is a unique set of resource addresses in run block.
+	// It's already validated for duplicates previously.
+	resAddrsInRun := make(map[string]struct{})
+	for _, r := range runResources {
+		resAddrsInRun[r.TargetParsed.String()] = struct{}{}
+	}
+
+	var diags hcl.Diagnostics
+
+	resources := runResources
+	for _, r := range fileResources {
+		addr := r.TargetParsed.String()
+
+		// Run and file override resources could have overlap
+		// so we warn user and proceed with the definition from the smaller scope.
+		if _, ok := resAddrsInRun[addr]; ok {
+			diags = diags.Append(&hcl.Diagnostic{
+				Severity: hcl.DiagWarning,
+				Summary:  fmt.Sprintf("Multiple `%v` blocks for the same address", r.getBlockName()),
+				Detail:   fmt.Sprintf("`%v` is overridden in both global file and local run blocks. The declaration in global file block will be ignored.", addr),
+				Subject:  r.Target.SourceRange().Ptr(),
+			})
+			continue
+		}
+
+		resources = append(resources, r)
+	}
+
+	return resources, diags
+}
+
+func mergeOverriddenModules(runModules, fileModules []*OverrideModule) ([]*OverrideModule, hcl.Diagnostics) {
+	// modAddrsInRun is a unique set of module addresses in run block.
+	// It's already validated for duplicates previously.
+	modAddrsInRun := make(map[string]struct{})
+	for _, m := range runModules {
+		modAddrsInRun[m.TargetParsed.String()] = struct{}{}
+	}
+
+	var diags hcl.Diagnostics
+
+	modules := runModules
+	for _, m := range fileModules {
+		addr := m.TargetParsed.String()
+
+		// Run and file override modules could have overlap
+		// so we warn user and proceed with the definition from the smaller scope.
+		if _, ok := modAddrsInRun[addr]; ok {
+			diags = diags.Append(&hcl.Diagnostic{
+				Severity: hcl.DiagWarning,
+				Summary:  "Multiple `override_module` blocks for the same address",
+				Detail:   fmt.Sprintf("Module `%v` is overridden in both global file and local run blocks. The declaration in global file block will be ignored.", addr),
+				Subject:  m.Target.SourceRange().Ptr(),
+			})
+			continue
+		}
+
+		modules = append(modules, m)
+	}
+
+	return modules, diags
 }

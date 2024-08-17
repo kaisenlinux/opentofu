@@ -36,6 +36,7 @@ func (c *ProvidersCommand) Run(args []string) int {
 
 	args = c.Meta.process(args)
 	cmdFlags := c.Meta.defaultFlagSet("providers")
+	c.Meta.varFlagSet(cmdFlags)
 	cmdFlags.StringVar(&testsDirectory, "test-directory", "tests", "test-directory")
 	cmdFlags.Usage = func() { c.Ui.Error(c.Help()) }
 	if err := cmdFlags.Parse(args); err != nil {
@@ -199,4 +200,13 @@ Options:
   -test-directory=path  Set the OpenTofu test directory, defaults to "tests". When set, the
                         test command will search for test files in the current directory and
                         in the one specified by the flag.
+
+  -var 'foo=bar'        Set a value for one of the input variables in the root
+                        module of the configuration. Use this option more than
+                        once to set more than one variable.
+
+  -var-file=filename    Load variable values from the given file, in addition
+                        to the default files terraform.tfvars and *.auto.tfvars.
+                        Use this option more than once to include more than one
+                        variables file.
 `
