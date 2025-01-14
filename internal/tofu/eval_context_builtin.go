@@ -12,7 +12,6 @@ import (
 	"sync"
 
 	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
 
@@ -22,7 +21,6 @@ import (
 	"github.com/opentofu/opentofu/internal/encryption"
 	"github.com/opentofu/opentofu/internal/instances"
 	"github.com/opentofu/opentofu/internal/lang"
-	"github.com/opentofu/opentofu/internal/lang/marks"
 	"github.com/opentofu/opentofu/internal/plans"
 	"github.com/opentofu/opentofu/internal/providers"
 	"github.com/opentofu/opentofu/internal/provisioners"
@@ -69,21 +67,22 @@ type BuiltinEvalContext struct {
 	InputValue UIInput
 
 	ProviderLock        *sync.Mutex
-	ProviderCache       map[string]providers.Interface
+	ProviderCache       map[string]map[addrs.InstanceKey]providers.Interface
 	ProviderInputConfig map[string]map[string]cty.Value
 
 	ProvisionerLock  *sync.Mutex
 	ProvisionerCache map[string]provisioners.Interface
 
-	ChangesValue          *plans.ChangesSync
-	StateValue            *states.SyncState
-	ChecksValue           *checks.State
-	RefreshStateValue     *states.SyncState
-	PrevRunStateValue     *states.SyncState
-	InstanceExpanderValue *instances.Expander
-	MoveResultsValue      refactoring.MoveResults
-	ImportResolverValue   *ImportResolver
-	Encryption            encryption.Encryption
+	ChangesValue            *plans.ChangesSync
+	StateValue              *states.SyncState
+	ChecksValue             *checks.State
+	RefreshStateValue       *states.SyncState
+	PrevRunStateValue       *states.SyncState
+	InstanceExpanderValue   *instances.Expander
+	MoveResultsValue        refactoring.MoveResults
+	ImportResolverValue     *ImportResolver
+	Encryption              encryption.Encryption
+	ProviderFunctionTracker ProviderFunctionMapping
 }
 
 // BuiltinEvalContext implements EvalContext
@@ -129,14 +128,18 @@ func (ctx *BuiltinEvalContext) Input() UIInput {
 	return ctx.InputValue
 }
 
-func (ctx *BuiltinEvalContext) InitProvider(addr addrs.AbsProviderConfig) (providers.Interface, error) {
+func (ctx *BuiltinEvalContext) InitProvider(addr addrs.AbsProviderConfig, providerKey addrs.InstanceKey) (providers.Interface, error) {
 	ctx.ProviderLock.Lock()
 	defer ctx.ProviderLock.Unlock()
 
 	key := addr.String()
 
+	if ctx.ProviderCache[key] == nil {
+		ctx.ProviderCache[key] = make(map[addrs.InstanceKey]providers.Interface)
+	}
+
 	// If we have already initialized, it is an error
-	if _, ok := ctx.ProviderCache[key]; ok {
+	if _, ok := ctx.ProviderCache[key][providerKey]; ok {
 		return nil, fmt.Errorf("%s is already initialized", addr)
 	}
 
@@ -150,24 +153,33 @@ func (ctx *BuiltinEvalContext) InitProvider(addr addrs.AbsProviderConfig) (provi
 		// We cannot wrap providers.Factory itself, because factories don't support aliases.
 		pc, ok := ctx.Evaluator.Config.Module.GetProviderConfig(addr.Provider.Type, addr.Alias)
 		if ok && pc.IsMocked {
-			p, err = newProviderForTest(p, pc.MockResources)
+			testP, err := newProviderForTestWithSchema(p, p.GetProviderSchema())
 			if err != nil {
 				return nil, err
 			}
+
+			p = testP.
+				withMockResources(pc.MockResources).
+				withOverrideResources(pc.OverrideResources)
 		}
 	}
 
-	log.Printf("[TRACE] BuiltinEvalContext: Initialized %q provider for %s", addr.String(), addr)
-	ctx.ProviderCache[key] = p
+	log.Printf("[TRACE] BuiltinEvalContext: Initialized %q%s provider for %s", addr.String(), providerKey, addr)
+	ctx.ProviderCache[key][providerKey] = p
 
 	return p, nil
 }
 
-func (ctx *BuiltinEvalContext) Provider(addr addrs.AbsProviderConfig) providers.Interface {
+func (ctx *BuiltinEvalContext) Provider(addr addrs.AbsProviderConfig, key addrs.InstanceKey) providers.Interface {
 	ctx.ProviderLock.Lock()
 	defer ctx.ProviderLock.Unlock()
 
-	return ctx.ProviderCache[addr.String()]
+	pm, ok := ctx.ProviderCache[addr.String()]
+	if !ok {
+		return nil
+	}
+
+	return pm[key]
 }
 
 func (ctx *BuiltinEvalContext) ProviderSchema(addr addrs.AbsProviderConfig) (providers.ProviderSchema, error) {
@@ -178,17 +190,27 @@ func (ctx *BuiltinEvalContext) CloseProvider(addr addrs.AbsProviderConfig) error
 	ctx.ProviderLock.Lock()
 	defer ctx.ProviderLock.Unlock()
 
+	var diags tfdiags.Diagnostics
+
 	key := addr.String()
-	provider := ctx.ProviderCache[key]
-	if provider != nil {
+	providerMap := ctx.ProviderCache[key]
+	if providerMap != nil {
+		for _, provider := range providerMap {
+			err := provider.Close()
+			if err != nil {
+				diags = diags.Append(err)
+			}
+		}
 		delete(ctx.ProviderCache, key)
-		return provider.Close()
+	}
+	if diags.HasErrors() {
+		return diags.Err()
 	}
 
 	return nil
 }
 
-func (ctx *BuiltinEvalContext) ConfigureProvider(addr addrs.AbsProviderConfig, cfg cty.Value) tfdiags.Diagnostics {
+func (ctx *BuiltinEvalContext) ConfigureProvider(addr addrs.AbsProviderConfig, providerKey addrs.InstanceKey, cfg cty.Value) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 	if !addr.Module.Equal(ctx.Path().Module()) {
 		// This indicates incorrect use of ConfigureProvider: it should be used
@@ -196,9 +218,9 @@ func (ctx *BuiltinEvalContext) ConfigureProvider(addr addrs.AbsProviderConfig, c
 		panic(fmt.Sprintf("%s configured by wrong module %s", addr, ctx.Path()))
 	}
 
-	p := ctx.Provider(addr)
+	p := ctx.Provider(addr, providerKey)
 	if p == nil {
-		diags = diags.Append(fmt.Errorf("%s not initialized", addr))
+		diags = diags.Append(fmt.Errorf("%s not initialized", addr.InstanceString(providerKey)))
 		return diags
 	}
 
@@ -409,110 +431,6 @@ func (ctx *BuiltinEvalContext) EvaluateReplaceTriggeredBy(expr hcl.Expression, r
 	return ref, replace, diags
 }
 
-// EvaluateImportAddress takes the raw reference expression of the import address
-// from the config, and returns the evaluated address addrs.AbsResourceInstance
-//
-// The implementation is inspired by config.AbsTraversalForImportToExpr, but this time we can evaluate the expression
-// in the indexes of expressions. If we encounter a hclsyntax.IndexExpr, we can evaluate the Key expression and create
-// an Index Traversal, adding it to the Traverser
-// TODO move this function into eval_import.go
-func (ctx *BuiltinEvalContext) EvaluateImportAddress(expr hcl.Expression, keyData instances.RepetitionData) (addrs.AbsResourceInstance, tfdiags.Diagnostics) {
-	traversal, diags := ctx.traversalForImportExpr(expr, keyData)
-	if diags.HasErrors() {
-		return addrs.AbsResourceInstance{}, diags
-	}
-
-	return addrs.ParseAbsResourceInstance(traversal)
-}
-
-func (ctx *BuiltinEvalContext) traversalForImportExpr(expr hcl.Expression, keyData instances.RepetitionData) (traversal hcl.Traversal, diags tfdiags.Diagnostics) {
-	switch e := expr.(type) {
-	case *hclsyntax.IndexExpr:
-		t, d := ctx.traversalForImportExpr(e.Collection, keyData)
-		diags = diags.Append(d)
-		traversal = append(traversal, t...)
-
-		tIndex, dIndex := ctx.parseImportIndexKeyExpr(e.Key, keyData)
-		diags = diags.Append(dIndex)
-		traversal = append(traversal, tIndex)
-	case *hclsyntax.RelativeTraversalExpr:
-		t, d := ctx.traversalForImportExpr(e.Source, keyData)
-		diags = diags.Append(d)
-		traversal = append(traversal, t...)
-		traversal = append(traversal, e.Traversal...)
-	case *hclsyntax.ScopeTraversalExpr:
-		traversal = append(traversal, e.Traversal...)
-	default:
-		// This should not happen, as it should have failed validation earlier, in config.AbsTraversalForImportToExpr
-		diags = diags.Append(&hcl.Diagnostic{
-			Severity: hcl.DiagError,
-			Summary:  "Invalid import address expression",
-			Detail:   "Import address must be a reference to a resource's address, and only allows for indexing with dynamic keys. For example: module.my_module[expression1].aws_s3_bucket.my_buckets[expression2] for resources inside of modules, or simply aws_s3_bucket.my_bucket for a resource in the root module",
-			Subject:  expr.Range().Ptr(),
-		})
-	}
-	return
-}
-
-// parseImportIndexKeyExpr parses an expression that is used as a key in an index, of an HCL expression representing an
-// import target address, into a traversal of type hcl.TraverseIndex.
-// After evaluation, the expression must be known, not null, not sensitive, and must be a string (for_each) or a number
-// (count)
-func (ctx *BuiltinEvalContext) parseImportIndexKeyExpr(expr hcl.Expression, keyData instances.RepetitionData) (hcl.TraverseIndex, tfdiags.Diagnostics) {
-	idx := hcl.TraverseIndex{
-		SrcRange: expr.Range(),
-	}
-
-	// evaluate and take into consideration the for_each key (if exists)
-	val, diags := evaluateExprWithRepetitionData(ctx, expr, cty.DynamicPseudoType, keyData)
-	if diags.HasErrors() {
-		return idx, diags
-	}
-
-	if !val.IsKnown() {
-		diags = diags.Append(&hcl.Diagnostic{
-			Severity: hcl.DiagError,
-			Summary:  "Import block 'to' address contains an invalid key",
-			Detail:   "Import block contained a resource address using an index that will only be known after apply. Please ensure to use expressions that are known at plan time for the index of an import target address",
-			Subject:  expr.Range().Ptr(),
-		})
-		return idx, diags
-	}
-
-	if val.IsNull() {
-		diags = diags.Append(&hcl.Diagnostic{
-			Severity: hcl.DiagError,
-			Summary:  "Import block 'to' address contains an invalid key",
-			Detail:   "Import block contained a resource address using an index which is null. Please ensure the expression for the index is not null",
-			Subject:  expr.Range().Ptr(),
-		})
-		return idx, diags
-	}
-
-	if val.Type() != cty.String && val.Type() != cty.Number {
-		diags = diags.Append(&hcl.Diagnostic{
-			Severity: hcl.DiagError,
-			Summary:  "Import block 'to' address contains an invalid key",
-			Detail:   "Import block contained a resource address using an index which is not valid for a resource instance (not a string or a number). Please ensure the expression for the index is correct, and returns either a string or a number",
-			Subject:  expr.Range().Ptr(),
-		})
-		return idx, diags
-	}
-
-	unmarkedVal, valMarks := val.Unmark()
-	if _, sensitive := valMarks[marks.Sensitive]; sensitive {
-		diags = diags.Append(&hcl.Diagnostic{
-			Severity: hcl.DiagError,
-			Summary:  "Import block 'to' address contains an invalid key",
-			Detail:   "Import block contained a resource address using an index which is sensitive. Please ensure indexes used in the resource address of an import target are not sensitive",
-			Subject:  expr.Range().Ptr(),
-		})
-	}
-
-	idx.Key = unmarkedVal
-	return idx, diags
-}
-
 func (ctx *BuiltinEvalContext) EvaluationScope(self addrs.Referenceable, source addrs.Referenceable, keyData InstanceKeyEvalData) *lang.Scope {
 	if !ctx.pathSet {
 		panic("context path not set")
@@ -538,7 +456,44 @@ func (ctx *BuiltinEvalContext) EvaluationScope(self addrs.Referenceable, source 
 	}
 
 	scope := ctx.Evaluator.Scope(data, self, source, func(pf addrs.ProviderFunction, rng tfdiags.SourceRange) (*function.Function, tfdiags.Diagnostics) {
-		return evalContextProviderFunction(ctx.Provider, mc, ctx.Evaluator.Operation, pf, rng)
+		providedBy, ok := ctx.ProviderFunctionTracker.Lookup(ctx.PathValue.Module(), pf)
+		if !ok {
+			// This should not be possible if references are tracked correctly
+			return nil, tfdiags.Diagnostics{}.Append(&hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  "BUG: Uninitialized function provider",
+				Detail:   fmt.Sprintf("Provider function %q has not been tracked properly", pf),
+				Subject:  rng.ToHCL().Ptr(),
+			})
+		}
+
+		var providerKey addrs.InstanceKey
+		if providedBy.KeyExpression != nil && ctx.Evaluator.Operation != walkValidate {
+			moduleInstanceForKey := ctx.PathValue[:len(providedBy.KeyModule)]
+			if !moduleInstanceForKey.Module().Equal(providedBy.KeyModule) {
+				panic(fmt.Sprintf("Invalid module key expression location %s in function %s", providedBy.KeyModule, pf.String()))
+			}
+
+			var keyDiags tfdiags.Diagnostics
+			providerKey, keyDiags = resolveProviderModuleInstance(ctx, providedBy.KeyExpression, moduleInstanceForKey, ctx.PathValue.String()+" "+pf.String())
+			if keyDiags.HasErrors() {
+				return nil, keyDiags
+			}
+		}
+
+		provider := ctx.Provider(providedBy.Provider, providerKey)
+
+		if provider == nil {
+			// This should not be possible if references are tracked correctly
+			return nil, tfdiags.Diagnostics{}.Append(&hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  "Uninitialized function provider",
+				Detail:   fmt.Sprintf("Provider %q has not yet been initialized", providedBy.Provider.String()),
+				Subject:  rng.ToHCL().Ptr(),
+			})
+		}
+
+		return evalContextProviderFunction(provider, ctx.Evaluator.Operation, pf, rng)
 	})
 	scope.SetActiveExperiments(mc.Module.ActiveExperiments)
 

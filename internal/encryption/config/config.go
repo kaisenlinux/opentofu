@@ -17,9 +17,9 @@ type EncryptionConfig struct {
 	KeyProviderConfigs []KeyProviderConfig `hcl:"key_provider,block"`
 	MethodConfigs      []MethodConfig      `hcl:"method,block"`
 
-	State  *EnforcableTargetConfig `hcl:"state,block"`
-	Plan   *EnforcableTargetConfig `hcl:"plan,block"`
-	Remote *RemoteConfig           `hcl:"remote_state_data_sources,block"`
+	State  *EnforceableTargetConfig `hcl:"state,block"`
+	Plan   *EnforceableTargetConfig `hcl:"plan,block"`
+	Remote *RemoteConfig            `hcl:"remote_state_data_sources,block"`
 
 	// Not preserved through merge operations
 	DeclRange hcl.Range
@@ -44,9 +44,11 @@ func (c *EncryptionConfig) GetKeyProvider(kpType, kpName string) (KeyProviderCon
 // KeyProviderConfig describes the terraform.encryption.key_provider.* block you can use to declare a key provider for
 // encryption. The Body field will contain the remaining undeclared fields the key provider can consume.
 type KeyProviderConfig struct {
-	Type string   `hcl:"type,label"`
-	Name string   `hcl:"name,label"`
-	Body hcl.Body `hcl:",remain"`
+	// EncryptedMetadataAlias contains the key to identify the metadata by.
+	EncryptedMetadataAlias string   `hcl:"encrypted_metadata_alias,optional"`
+	Type                   string   `hcl:"type,label"`
+	Name                   string   `hcl:"name,label"`
+	Body                   hcl.Body `hcl:",remain"`
 }
 
 // Addr returns a keyprovider.Addr from the current configuration.
@@ -79,17 +81,17 @@ type TargetConfig struct {
 	Fallback *TargetConfig  `hcl:"fallback,block"`
 }
 
-// EnforcableTargetConfig is an extension of the TargetConfig that supports the enforced form.
+// EnforceableTargetConfig is an extension of the TargetConfig that supports the enforced form.
 //
 // Note: This struct is copied because gohcl does not support embedding.
-type EnforcableTargetConfig struct {
+type EnforceableTargetConfig struct {
 	Enforced bool           `hcl:"enforced,optional"`
 	Method   hcl.Expression `hcl:"method,optional"`
 	Fallback *TargetConfig  `hcl:"fallback,block"`
 }
 
 // AsTargetConfig converts the struct into its parent TargetConfig.
-func (e EnforcableTargetConfig) AsTargetConfig() *TargetConfig {
+func (e EnforceableTargetConfig) AsTargetConfig() *TargetConfig {
 	return &TargetConfig{
 		Method:   e.Method,
 		Fallback: e.Fallback,

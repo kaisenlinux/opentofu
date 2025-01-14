@@ -204,12 +204,19 @@ func (c *InitCommand) Run(args []string) int {
 		return 1
 	}
 
-	// Load the encryption configuration
-	enc, encDiags := c.EncryptionFromModule(rootModEarly)
-	diags = diags.Append(encDiags)
-	if encDiags.HasErrors() {
-		c.showDiagnostics(diags)
-		return 1
+	var enc encryption.Encryption
+	// If backend flag is explicitly set to false i.e -backend=false, we disable state and plan encryption
+	if backendFlagSet && !flagBackend {
+		enc = encryption.Disabled()
+	} else {
+		// Load the encryption configuration
+		var encDiags tfdiags.Diagnostics
+		enc, encDiags = c.EncryptionFromModule(rootModEarly)
+		diags = diags.Append(encDiags)
+		if encDiags.HasErrors() {
+			c.showDiagnostics(diags)
+			return 1
+		}
 	}
 
 	var back backend.Backend
@@ -292,8 +299,7 @@ func (c *InitCommand) Run(args []string) int {
 
 	// Now, we can check the diagnostics from the early configuration and the
 	// backend.
-	diags = diags.Append(earlyConfDiags)
-	diags = diags.Append(backDiags)
+	diags = diags.Append(earlyConfDiags.StrictDeduplicateMerge(backDiags))
 	if earlyConfDiags.HasErrors() {
 		c.Ui.Error(strings.TrimSpace(errInitConfigError))
 		c.showDiagnostics(diags)
@@ -437,7 +443,7 @@ func (c *InitCommand) getModules(ctx context.Context, path, testsDir string, ear
 
 func (c *InitCommand) initCloud(ctx context.Context, root *configs.Module, extraConfig rawFlags, enc encryption.Encryption) (be backend.Backend, output bool, diags tfdiags.Diagnostics) {
 	ctx, span := tracer.Start(ctx, "initialize cloud backend")
-	_ = ctx // prevent staticcheck from complaining to avoid a maintenence hazard of having the wrong ctx in scope here
+	_ = ctx // prevent staticcheck from complaining to avoid a maintenance hazard of having the wrong ctx in scope here
 	defer span.End()
 
 	c.Ui.Output(c.Colorize().Color("\n[reset][bold]Initializing cloud backend..."))
@@ -465,7 +471,7 @@ func (c *InitCommand) initCloud(ctx context.Context, root *configs.Module, extra
 
 func (c *InitCommand) initBackend(ctx context.Context, root *configs.Module, extraConfig rawFlags, enc encryption.Encryption) (be backend.Backend, output bool, diags tfdiags.Diagnostics) {
 	ctx, span := tracer.Start(ctx, "initialize backend")
-	_ = ctx // prevent staticcheck from complaining to avoid a maintenence hazard of having the wrong ctx in scope here
+	_ = ctx // prevent staticcheck from complaining to avoid a maintenance hazard of having the wrong ctx in scope here
 	defer span.End()
 
 	c.Ui.Output(c.Colorize().Color("\n[reset][bold]Initializing the backend..."))
@@ -971,7 +977,7 @@ func (c *InitCommand) getProviders(ctx context.Context, config *configs.Config, 
 	if !newLocks.Equal(previousLocks) {
 		// if readonly mode
 		if flagLockfile == "readonly" {
-			// check if required provider dependences change
+			// check if required provider dependencies change
 			if !newLocks.EqualProviderAddress(previousLocks) {
 				diags = diags.Append(tfdiags.Sourceless(
 					tfdiags.Error,
@@ -1194,8 +1200,20 @@ Options:
                           times. The backend type must be in the configuration
                           itself.
 
+  -compact-warnings       If OpenTofu produces any warnings that are not
+                          accompanied by errors, show them in a more compact
+                          form that includes only the summary messages.
+
+  -consolidate-warnings   If OpenTofu produces any warnings, no consolodation
+                          will be performed. All locations, for all warnings
+                          will be listed. Enabled by default.
+
+  -consolidate-errors     If OpenTofu produces any errors, no consolodation
+                          will be performed. All locations, for all errors
+                          will be listed. Disabled by default
+
   -force-copy             Suppress prompts about copying state data when
-                          initializating a new state backend. This is
+                          initializing a new state backend. This is
                           equivalent to providing a "yes" to all confirmation
                           prompts.
 

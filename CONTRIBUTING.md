@@ -56,6 +56,7 @@ Please make sure you complete the following checklist before you mark your PR re
 - [ ] I have read the contribution guidelines.
 - [ ] I have not used an AI coding assistant to create this PR.
 - [ ] I have written all code in this PR myself OR I have marked all code I have not written myself (including modified code, e.g. copied from other places and then modified) with a comment indicating where it came from.
+- [ ] I (and other contributors to this PR) have not looked at the Terraform source code while implementing this PR.
 
 ### Go checklist
 
@@ -111,8 +112,12 @@ If you have Docker or a compatible alternative installed, you can run the entire
 docker run \
   --rm \
   -v "$PWD":/usr/src/opentofu\
-  -w /usr/src/opentofu golang:1.21.3\
-  GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o tofu -v -buildvcs=false ./cmd/tofu
+  -w /usr/src/opentofu\
+  -e GOOS=linux\
+  -e GOARCH=amd64\
+  -e CGO_ENABLED=0\
+  golang:1.21.3\
+  go build -o tofu -v -buildvcs=false ./cmd/tofu
 ```
 
 This will create the `tofu` binary in the current working directory, which you can test by running `./tofu --version`.

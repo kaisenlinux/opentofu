@@ -294,13 +294,15 @@ func (c *Context) watchStop(walker *ContextGraphWalker) (chan struct{}, <-chan s
 			// Copy the providers so that a misbehaved blocking Stop doesn't
 			// completely hang OpenTofu.
 			walker.providerLock.Lock()
-			ps := make([]providers.Interface, 0, len(walker.providerCache))
-			for _, p := range walker.providerCache {
-				ps = append(ps, p)
+			toStop := make([]providers.Interface, 0, len(walker.providerCache))
+			for _, providerMap := range walker.providerCache {
+				for _, provider := range providerMap {
+					toStop = append(toStop, provider)
+				}
 			}
 			defer walker.providerLock.Unlock()
 
-			for _, p := range ps {
+			for _, p := range toStop {
 				// We ignore the error for now since there isn't any reasonable
 				// action to take if there is an error here, since the stop is still
 				// advisory: OpenTofu will exit once the graph node completes.
@@ -329,7 +331,7 @@ func (c *Context) watchStop(walker *ContextGraphWalker) (chan struct{}, <-chan s
 	return stop, wait
 }
 
-// checkConfigDependencies checks whether the recieving context is able to
+// checkConfigDependencies checks whether the receiving context is able to
 // support the given configuration, returning error diagnostics if not.
 //
 // Currently this function checks whether the current OpenTofu CLI version
@@ -426,7 +428,7 @@ func (c *Context) checkConfigDependencies(config *configs.Config) tfdiags.Diagno
 	// so they are at least always consistent alone. This ordering is
 	// arbitrary and not a compatibility constraint.
 	sort.Slice(diags, func(i, j int) bool {
-		// Because these are sourcelss diagnostics and we know they are all
+		// Because these are sourceless diagnostics and we know they are all
 		// errors, we know they'll only differ in their description fields.
 		descI := diags[i].Description()
 		descJ := diags[j].Description()

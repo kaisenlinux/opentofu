@@ -23,12 +23,15 @@ import (
 )
 
 // LocalRun implements backend.Local
-func (b *Cloud) LocalRun(op *backend.Operation) (*backend.LocalRun, statemgr.Full, tfdiags.Diagnostics) {
+//
+//nolint:funlen,nestif // Historical function predates our complexity rules
+func (b *Cloud) LocalRun(_ context.Context, op *backend.Operation) (*backend.LocalRun, statemgr.Full, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 	ret := &backend.LocalRun{
 		PlanOpts: &tofu.PlanOpts{
-			Mode:    op.PlanMode,
-			Targets: op.Targets,
+			Mode:     op.PlanMode,
+			Targets:  op.Targets,
+			Excludes: op.Excludes,
 		},
 	}
 
@@ -291,7 +294,7 @@ func (v *remoteStoredVariableValue) ParseVariableValue(mode configs.VariablePars
 		// We mark these as "from input" with the rationale that entering
 		// variable values into the Terraform Cloud or Enterprise UI is,
 		// roughly speaking, a similar idea to entering variable values at
-		// the interactive CLI prompts. It's not a perfect correspondance,
+		// the interactive CLI prompts. It's not a perfect correspondence,
 		// but it's closer than the other options.
 		SourceType: tofu.ValueFromInput,
 	}, diags

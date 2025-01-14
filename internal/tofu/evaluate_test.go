@@ -33,11 +33,20 @@ func TestEvaluatorGetTerraformAttr(t *testing.T) {
 	}
 	scope := evaluator.Scope(data, nil, nil, nil)
 
-	t.Run("workspace", func(t *testing.T) {
+	t.Run("terraform.workspace", func(t *testing.T) {
 		want := cty.StringVal("foo")
-		got, diags := scope.Data.GetTerraformAttr(addrs.TerraformAttr{
-			Name: "workspace",
-		}, tfdiags.SourceRange{})
+		got, diags := scope.Data.GetTerraformAttr(addrs.NewTerraformAttr("terraform", "workspace"), tfdiags.SourceRange{})
+		if len(diags) != 0 {
+			t.Errorf("unexpected diagnostics %s", spew.Sdump(diags))
+		}
+		if !got.RawEquals(want) {
+			t.Errorf("wrong result %q; want %q", got, want)
+		}
+	})
+
+	t.Run("tofu.workspace", func(t *testing.T) {
+		want := cty.StringVal("foo")
+		got, diags := scope.Data.GetTerraformAttr(addrs.NewTerraformAttr("tofu", "workspace"), tfdiags.SourceRange{})
 		if len(diags) != 0 {
 			t.Errorf("unexpected diagnostics %s", spew.Sdump(diags))
 		}
@@ -237,6 +246,7 @@ func TestEvaluatorGetResource(t *testing.T) {
 				Provider: addrs.NewDefaultProvider("test"),
 				Module:   addrs.RootModule,
 			},
+			addrs.NoKey,
 		)
 	}).SyncWrapper()
 
@@ -411,6 +421,7 @@ func TestEvaluatorGetResource_changes(t *testing.T) {
 				Provider: addrs.NewDefaultProvider("test"),
 				Module:   addrs.RootModule,
 			},
+			addrs.NoKey,
 		)
 	}).SyncWrapper()
 

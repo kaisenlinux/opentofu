@@ -79,11 +79,6 @@ func (c *WorkspaceSelectCommand) Run(args []string) int {
 		return 1
 	}
 
-	if err != nil {
-		c.Ui.Error(fmt.Sprintf("Failed to load backend: %s", err))
-		return 1
-	}
-
 	// This command will not write state
 	c.ignoreRemoteVersionConflict(b)
 
@@ -161,7 +156,7 @@ func (c *WorkspaceSelectCommand) AutocompleteFlags() complete.Flags {
 
 func (c *WorkspaceSelectCommand) Help() string {
 	helpText := `
-Usage: tofu [global options] workspace select NAME
+Usage: tofu [global options] workspace select [options] NAME
 
   Select a different OpenTofu workspace.
 

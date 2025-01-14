@@ -29,6 +29,7 @@ type ApplyCommand struct {
 
 func (c *ApplyCommand) Run(rawArgs []string) int {
 	var diags tfdiags.Diagnostics
+	ctx := c.CommandContext()
 
 	// Parse and apply global view arguments
 	common, rawArgs := arguments.ParseView(rawArgs)
@@ -48,6 +49,8 @@ func (c *ApplyCommand) Run(rawArgs []string) int {
 	default:
 		args, diags = arguments.ParseApply(rawArgs)
 	}
+
+	c.View.SetShowSensitive(args.ShowSensitive)
 
 	// Instantiate the view, even if there are flag errors, so that we render
 	// diagnostics according to the desired view
@@ -132,7 +135,7 @@ func (c *ApplyCommand) Run(rawArgs []string) int {
 	diags = nil
 
 	// Run the operation
-	op, diags := c.RunOperation(be, opReq)
+	op, diags := c.RunOperation(ctx, be, opReq)
 	view.Diagnostics(diags)
 	if diags.HasErrors() {
 		return 1
@@ -282,6 +285,7 @@ func (c *ApplyCommand) OperationRequest(
 	opReq.PlanFile = planFile
 	opReq.PlanRefresh = args.Refresh
 	opReq.Targets = args.Targets
+	opReq.Excludes = args.Excludes
 	opReq.ForceReplace = args.ForceReplace
 	opReq.Type = backend.OperationTypeApply
 	opReq.View = view.Operation()
@@ -298,7 +302,7 @@ func (c *ApplyCommand) OperationRequest(
 
 func (c *ApplyCommand) GatherVariables(args *arguments.Vars) {
 	// FIXME the arguments package currently trivially gathers variable related
-	// arguments in a heterogenous slice, in order to minimize the number of
+	// arguments in a heterogeneous slice, in order to minimize the number of
 	// code paths gathering variables during the transition to this structure.
 	// Once all commands that gather variables have been converted to this
 	// structure, we could move the variable gathering code to the arguments
@@ -354,6 +358,14 @@ Options:
                          accompanied by errors, show them in a more compact
                          form that includes only the summary messages.
 
+  -consolidate-warnings  If OpenTofu produces any warnings, no consolodation
+                         will be performed. All locations, for all warnings
+                         will be listed. Enabled by default.
+
+  -consolidate-errors    If OpenTofu produces any errors, no consolodation
+                         will be performed. All locations, for all errors
+                         will be listed. Disabled by default
+
   -destroy               Destroy OpenTofu-managed infrastructure.
                          The command "tofu destroy" is a convenience alias
                          for this option.
@@ -377,6 +389,8 @@ Options:
   -state-out=path        Path to write state to that is different than
                          "-state". This can be used to preserve the old
                          state.
+
+  -show-sensitive        If specified, sensitive values will be displayed.
 
   If you don't provide a saved plan file then this command will also accept
   all of the plan-customization options accepted by the tofu plan command.

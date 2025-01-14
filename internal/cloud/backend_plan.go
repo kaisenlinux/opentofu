@@ -79,6 +79,14 @@ func (b *Cloud) opPlan(stopCtx, cancelCtx context.Context, op *backend.Operation
 		))
 	}
 
+	if len(op.Excludes) != 0 {
+		diags = diags.Append(tfdiags.Sourceless(
+			tfdiags.Error,
+			"-exclude option is not supported",
+			"The -exclude option is not currently supported for remote plans.",
+		))
+	}
+
 	if len(op.GenerateConfigOut) > 0 {
 		diags = diags.Append(genconfig.ValidateTargetFile(op.GenerateConfigOut))
 	}
@@ -103,7 +111,7 @@ func (b *Cloud) opPlan(stopCtx, cancelCtx context.Context, op *backend.Operation
 		}
 	}
 
-	// Everything succeded, so display next steps
+	// Everything succeeded, so display next steps
 	op.View.PlanNextStep(op.PlanOutPath, op.GenerateConfigOut)
 
 	return run, nil
@@ -307,7 +315,7 @@ in order to capture the filesystem context the remote workspace expects:
 						b.CLI.Output(b.Colorize().Color(strings.TrimSpace(lockTimeoutErr)))
 					}
 
-					// We abuse the auto aprove flag to indicate that we do not
+					// We abuse the auto approve flag to indicate that we do not
 					// want to ask if the remote operation should be canceled.
 					op.AutoApprove = true
 

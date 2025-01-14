@@ -8,6 +8,7 @@ package tofu
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"fmt"
 	"path/filepath"
 	"sort"
@@ -106,7 +107,7 @@ func TestNewContextRequiredVersion(t *testing.T) {
 				t.Fatalf("unexpected NewContext errors: %s", diags.Err())
 			}
 
-			diags = c.Validate(mod)
+			diags = c.Validate(context.Background(), mod)
 			if diags.HasErrors() != tc.Err {
 				t.Fatalf("err: %s", diags.Err())
 			}
@@ -165,7 +166,7 @@ terraform {}
 				t.Fatalf("unexpected NewContext errors: %s", diags.Err())
 			}
 
-			diags = c.Validate(mod)
+			diags = c.Validate(context.Background(), mod)
 			if diags.HasErrors() != tc.Err {
 				t.Fatalf("err: %s", diags.Err())
 			}
@@ -210,8 +211,8 @@ resource "implicit_thing" "b" {
 	// require doing some pretty weird things that aren't common enough to
 	// be worth the complexity to check for them.
 
-	validateDiags := ctx.Validate(cfg)
-	_, planDiags := ctx.Plan(cfg, nil, DefaultPlanOpts)
+	validateDiags := ctx.Validate(context.Background(), cfg)
+	_, planDiags := ctx.Plan(context.Background(), cfg, nil, DefaultPlanOpts)
 
 	tests := map[string]tfdiags.Diagnostics{
 		"validate": validateDiags,
@@ -762,7 +763,7 @@ func contextOptsForPlanViaFile(t *testing.T, configSnap *configload.Snapshot, pl
 }
 
 // legacyPlanComparisonString produces a string representation of the changes
-// from a plan and a given state togther, as was formerly produced by the
+// from a plan and a given state together, as was formerly produced by the
 // String method of tofu.Plan.
 //
 // This is here only for compatibility with existing tests that predate our

@@ -1,245 +1,192 @@
 ---
 sidebar_position: 2
-sidebar_label: What's new in version 1.8?
+sidebar_label: What's new in version 1.9?
 description: |-
-  Learn all about the new features in OpenTofu 1.8.
+  Learn all about the new features in OpenTofu 1.9.
 ---
 
-# What's new in OpenTofu 1.8?
+# What's new in OpenTofu 1.9?
 
-This page will run you through the most important changes in OpenTofu 1.8:
+This page will run you through the most important changes in OpenTofu 1.9:
 
-- [Early variable/locals evaluation](#early-variablelocals-evaluation)
-- [Provider mocking in `tofu test`](#provider-mocking-in-tofu-test)
-- [Resource overrides in `tofu test`](#resource-overrides-in-tofu-test)
-- [Override files for OpenTofu: keeping compatibility](#override-files-for-opentofu-keeping-compatibility)
-- [Deprecation: `use_legacy_workflow` has been removed from the S3 backend](#deprecation-use_legacy_workflow-has-been-removed-from-the-s3-backend)
-- [Smaller improvements](#smaller-improvements)
+- [New features](#new-features)
+  - [Provider iteration (`for_each`)](#provider-iteration-for_each)
+  - [The `-exclude` flag](#the-exclude-flag)
+- [Improvements to existing features](#improvements-to-existing-features)
+  - [Early evaluation improvements](#early-evaluation-improvements)
+  - [Encryption improvements](#encryption-improvements)
+  - [Backend improvements](#backend-improvements)
+  - [CLI improvements](#cli-improvements)
+  - [Performance improvements](#performance-improvements)
+- [Deprecations](#deprecations)
+  - [Using `ghcr.io/opentofu/opentofu` as a base image](#using-ghcrioopentofuopentofu-as-a-base-image)
 - [Bugfixes](#bugfixes)
 
-## Early variable/locals evaluation
+## New features
 
-This feature lets you use variables and locals for **backends**, **module sources** and **encryption configuration** as long as they are not dependent on resources, data sources or module outputs. This works even if a local is referencing a variable, for example. This is only the first in a series of improvements that will make the .tf code more flexible with more improvements coming in future releases.
+### Provider iteration (`for_each`)
 
-The `tofu init` command will now consume your `.tfvars` file and let you specify variables using the `-var` and `-var-file` options. Please note that this alpha release will *not* prompt you for missing variables, which is a feature we will add later. Note, that `tofu init` will fail if it is missing variables needed for static evaluation.
+One of the biggest challenges keeping the code clean in a multi-region or multi-zone deployment is the sheer number of providers and related configurations you have to juggle. Essentially, you will have to create duplicated code for each region or zone.
 
-For example, if you wanted to use the same configuration for your S3 backend and your AWS provider, you can now do this:
+With provider iteration, you can now get rid of your code duplications by iterating over a set of providers instead of the duplicated code. If you have a small-scale setup with one of the cloud providers offering multiple zones, start by adding two variables:
 
 ```hcl
-variable "aws_region" {
-  default = "us-east-1"
+variable "regions" {
+  description = "A list of regions that should have a deployment."
+  type        = set(string)
 }
 
-terraform {
-  backend "s3" {
-    region = var.aws_region
-  }
+variable "disabled_regions" {
+  description = "A list of regions that should be disabled and all resources removed."
+  type        = set(string)
+  default     = []
 }
+```
 
+The `regions` variable serves as a list of regions you will want to deploy to. The `disabled_regions` variable will allow you to remove a region later without removing the provider. This feature is extremely important because if you remove the provider without removing its resources, OpenTofu will be unable to remove the resources in that region.
+
+As a next step, you can create your provider declarations. As you can see, this is only a single declaration. The only restriction worth mentioning here is the `alias`. Due to technical limitations, in this version you can only use `for_each` in conjunction with `alias`.
+
+```hcl
 provider "aws" {
-  region = var.aws_region
+  alias    = "by_region"
+  region   = each.value
+  for_each = var.regions
 }
 ```
 
-You can also use this to manage module versions with both registry references and git URLs.
+Finally, you can use the provider set to call a submodule. Note that in contrast to the `provider` block above, the `for_each` iterates only over the providers that are not disabled. This lets you deprovision a region properly and later completely remove the provider.
 
 ```hcl
-locals {
-  aws_module_version = "5.6.1"
-}
-
-module "webserver" {
-  source  = "terraform-aws-modules/ec2-instance/aws"
-  version = local.aws_module_version
-
-  // Other ec2_instance options
-}
-
-module "db" {
-  source  = "https://github.com/terraform-aws-modules/terraform-aws-ec2-instance?ref=v${local.aws_module_version}"
-
-  // Other ec2_instance options
+module "deploy" {
+  source    = "./deploy"
+  providers = {
+    aws = aws.by_region[each.key]
+  }
+  for_each = setsubtract(var.regions, var.disabled_regions)
 }
 ```
 
-Finally, here's how you can set up encryption with a passphrase using a variable:
+As this feature is a major departure how OpenTofu and its predecessor worked, there are a few limitations in place you may want to observe:
+
+1. You can only use `for_each` on variables and locals that can be obtained statically. Expressions that rely on data sources or resources are currently not usable.
+2. If you have an already-deployed infrastructure, don't simply remove a provider from the list as this will make it impossible for OpenTofu to destroy the infrastructure in this region. Instead, you will need to implement removing that infrastructure first and then remove the provider from the list. See the `disabled_regions` variable for an example above. OpenTofu will attempt to warn you if you don't use separate variables for provider and resource iterations, we strongly recommend you heed this warning.
+3. In this version each provider used in a `for_each` **must** have an alias. Providers without aliases are not supported for now due to internal technical reasons.
+4. There is currently no way to pass a set of providers to a module, you can only pass individual providers.
+
+For more details, please read the [full documentation](../language/providers/configuration.mdx#for_each-multiple-instances-of-a-provider-configuration).
+
+### The `-exclude` flag
+
+OpenTofu already has a `-target` option to only plan or apply certain resources. Why not apply everything except a certain resource? This was the thought behind the `-exclude` flag and, in fact, this was one of the highest upvoted feature requests for this release.
+
+You can test it by creating the following simple configuration:
 
 ```hcl
-variable "passphrase" {
-  type = string
+resource "local_file" "a" {
+    filename = "a.txt"
+    content  = "a"
 }
 
+resource "local_file" "b" {
+    filename = "b.txt"
+    content  = "b"
+}
+
+resource "local_file" "c" {
+    filename = "c.txt"
+    content  = "c"
+}
+```
+
+If you run `tofu apply -exclude local_file.b`, you will see that OpenTofu creates `a.txt` and `c.txt`, but not `b.txt`.
+
+## Improvements to existing features
+
+### Early evaluation improvements
+
+When using early evaluation introduced in OpenTofu 1.8, OpenTofu will now prompt you for the variables needed for evaluation.
+
+### Encryption improvements
+
+#### The new `encrypted_metadata_alias` option for state encryption
+
+One of the tricky parts when using [state encryption](../language/state/encryption.mdx) in previous versions is that OpenTofu needs to store the name of the key provider into the encrypted data alongside some metadata needed for decryption. This meant that changing the key provider name would involve using a `fallback` block and key provider naming for remote state data sources would have to be synchronized. With OpenTofu 1.9, we are introducing a new `encrypted_metadata_alias` option you can use to explicitly set the ID stored with the encrypted data:
+
+```hcl
 terraform {
   encryption {
-    key_provider "pbkdf2" "my_passphrase" {
-      passphrase = var.passphrase
+    key_provider "pbkdf2" "mykey" {
+      passphrase               = "OpenTofu has encryption"
+      # Note the fixed encrypted_metadata_alias here:
+      encrypted_metadata_alias = "certificates"
     }
-
-    method "aes_gcm" "my_method" {
-      keys = key_provider.pbkdf2.my_passphrase
+    method "aes_gcm" "mymethod" {
+      keys = key_provider.pbkdf2.mykey
     }
-
     state {
-      method = method.aes_gcm.my_method
+      method = method.aes_gcm.mymethod
     }
   }
 }
 ```
 
-## Provider mocking in `tofu test`
+#### Auto-applying encryption
 
-Building on the existing ability to override specific data sources, resources, and module calls, `tofu test` now supports mocking entire provider definitions. This new feature allows you to automatically generate mock values for resources and data sources on a per-provider basis. As an example, consider the following code that spins up an m6i.2xlarge instance on AWS:
+In the previous OpenTofu version, changing the [encryption configuration](../language/state/encryption.mdx) would not apply the encryption if no resource changes were detected. In this new version, OpenTofu applies the encryption configuration even if no resource changes are in the plan.
 
-```hcl
-provider "aws" {
-    region = "us-east-1"
-}
+### Testing and validation improvements
 
-data "aws_ami" "ubuntu" {
-    most_recent = true
-    filter {
-      name   = "name"
-      values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-24.04-amd64-server-*"]
-    }
-    owners = ["099720109477"]
-}
+* [`tofu test`](../cli/commands/test/index.mdx) now throws errors instead of warnings for invalid override and mock fields.
+* [`tofu test`](../cli/commands/test/index.mdx) now supports `override_resource` and `override_data` blocks in the scope of a single `mock_provider`.
+* References to variables, data, etc. are now usable in [variable validation](../language/values/variables.mdx#custom-validation-rules).
+* You can now use the `-consolidate-warnings` and `-consolidate-errors` options to consolidate similar warnings and errors together.
 
-resource "aws_instance" "web" {
-    ami           = data.aws_ami.ubuntu.id
-    instance_type = "m6i.2xlarge"
-}
-```
+### Backend improvements
 
-Instead of querying the AMI ID and spinning up the instance, we can write test code as follows:
-```hcl
-// This block will prevent OpenTofu from configuring aws provider.
-// All provider's resources and data sources will be mocked.
-mock_provider "aws" {
-  mock_data "aws_ami" {
-    defaults = {
-      id = "ami-12345"
-    }
-  }
-}
+* The [HTTP backend](../language/settings/backends/http.mdx) now supports extended trace logging, including request and response bodies.
+* The [`AzureRM` backend](../language/settings/backends/azurerm.mdx) now supports the `timeout_seconds` option with default timeout of 300 seconds.
 
-run "test" {
-  assert {
-    condition     = aws_instance.web.ami == "ami-12345"
-    error_message = "Incorrect AMI ID passed to aws_instance.web: ${aws_instance.web.ami}"
-  }
-}
-```
+### CLI improvements
 
-While this will not fully test the entire provisioning, it will highlight errors that may be caused by incorrectly connecting resources together without the need for an actual AWS account.
+* [`tofu console`](../cli/commands/console.mdx) now accepts expressions split over multiple lines, when the newline characters appear inside bracketing pairs or when they are escaped using a backslash.
+* `-show-sensitive` option causes [`tofu plan`](../cli/commands/plan.mdx), [`tofu apply`](../cli/commands/apply.mdx), and other commands that can return data from the configuration or state to unmask sensitive values.
 
-## Resource overrides in `tofu test`
+### Performance improvements
 
-You can now override resources, data sources and entire modules from your tests, allowing you to create similar behavior to mocks in traditional software testing. As an example, consider the following code that spins up an `m6i.2xlarge` instance on AWS:
+With the help of the community, we have made several performance improvements for large graphs and large amounts of submodules.
 
-```hcl
-provider "aws" {
-    region = "us-east-1"
-}
+## Deprecations
 
-data "aws_ami" "ubuntu" {
-    most_recent = true
-    filter {
-      name   = "name"
-      values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-24.04-amd64-server-*"]
-    }
-    owners = ["099720109477"]
-}
+### Using `ghcr.io/opentofu/opentofu` as a base image
 
-resource "aws_instance" "web" {
-    ami           = data.aws_ami.ubuntu.id
-    instance_type = "m6i.2xlarge"
-}
-```
+Using the `ghcr.io/opentofu/opentofu` image as a base image for custom images is deprecated and this will be removed in OpenTofu 1.10. The reason behind this change is security: while we regularly update OpenTofu itself when security-relevant updates arise, providing a base image would require an update roughly once a week, which we are currently not equipped to do.
 
-Instead of querying the AMI ID and spinning up the instance, we can write test code as follows:
+However, we have added instructions on building your own base image in the [containerized installation instructions](./install/docker.mdx#building-your-own-image).
 
-```hcl
-provider "aws" {
-  access_key = "foo"
-  secret_key = "bar"
+## Bugfixes
 
-  skip_credentials_validation = true
-  skip_region_validation      = true
-  skip_metadata_api_check     = true
-  skip_requesting_account_id  = true
-}
-
-# This block disables refreshing the aws_ami.ubuntu data source
-# and lets you manually specify the values:
-override_data {
-  target = data.aws_ami.ubuntu
-  values = {
-    id = "ami-12345"
-  }
-}
-
-run "test" {
-  # This block disables provisioning the aws_instance.web resource:
-  override_resource {
-    target = aws_instance.web
-    values = {
-      # You can add values here.
-    }
-  }
-
-  assert {
-    condition     = aws_instance.web.ami == "ami-12345"
-    error_message = "Incorrect AMI ID passed to aws_instance.web: ${aws_instance.web.ami}"
-  }
-}
-```
-
-While this will not fully test the entire provisioning, it will highlight errors that may be caused by incorrectly connecting resources together without the need for an actual AWS account. Similarly, you can use `override_module` to override an entire module.
-
-## Override files for OpenTofu: keeping compatibility
-
-Since we are now adding features to OpenTofu that are not present in Terraform, we want to give module authors the ability to write code for both OpenTofu and Terraform without needing to maintain two copies of their modules. You can now create files named `.tofu` that are exclusive to OpenTofu. If you create a file named `foo.tofu`, OpenTofu will ignore the similarly-named `foo.tf` file. You can use this functionality to put your Terraform-specific code in the `.tf` file and then override it for OpenTofu in the `.tofu` file.
-
-The following replacement files are available:
-
-- `foo.tf` &rarr; `foo.tofu`
-- `foo.tf.json` &rarr; `foo.tofu.json`
-- `foo.tftest.hcl` &rarr; `foo.tofutest.hcl`
-- `foo.tftest.json` &rarr; `foo.tofutest.json`
-- `foo_override.tf` &rarr; `foo_override.tofu`
-- `foo_override.tf.json` &rarr; `foo_override.tofu.json`
-
-You can still use the `.tf` extension for all your code, this functionality is intended for module authors who want to provide compatible code for both OpenTofu and Terraform while using new OpenTofu features.
-
-## Bugfixes, improvements, deprecations
-
-### Deprecation: `use_legacy_workflow` has been removed from the S3 backend
-
-The `use_legacy_workflow` option has now been removed from the S3 backend configuration.
-
-### Smaller improvements
-
-- The machine-readable UI documentation now contains the `tofu test -json` types.
-- `tofu plan` now generates `jsonencode()` when using `generate-config-out`.
-- The state persistence interval is now configurable with the `TF_STATE_PERSIST_INTERVAL` environment variable.
-- Improved performance when writing state files and reducing state file size using compact JSON encoding.
-- You can now reference variables inside the `variables` block of a test file.
-- Provider functions are now included in the `tofu providers schema` command.
-
-### Bugfixes
-
-* Fixed validation for `enforced` flag in encryption configuration. ([#1711](https://github.com/opentofu/opentofu/pull/1711))
-* Fixed crash in gcs backend when using certain commands. ([#1618](https://github.com/opentofu/opentofu/pull/1618))
-* Fixed inmem backend crash due to missing struct field. ([#1619](https://github.com/opentofu/opentofu/pull/1619))
-* Added a check in the `tofu test` to validate that the names of test run blocks do not contain spaces. ([#1489](https://github.com/opentofu/opentofu/pull/1489))
-* `tofu test` now supports accessing module outputs when the module has no resources. ([#1409](https://github.com/opentofu/opentofu/pull/1409))
-* Fixed support for provider functions in tests ([#1603](https://github.com/opentofu/opentofu/pull/1603))
-* Only hide sensitive attributes in plan detail when plan on a set of resources ([#1313](https://github.com/opentofu/opentofu/pull/1313))
-* Added a better error message on `for_each` block with sensitive value of unsuitable type. ([#1485](https://github.com/opentofu/opentofu/pull/1485))
-* Fix race condition on locking in gcs backend ([#1342](https://github.com/opentofu/opentofu/pull/1342))
-* Fix bug where provider functions were unusable in variables and outputs ([#1689](https://github.com/opentofu/opentofu/pull/1689))
-* Fix bug where lower-case `http_proxy`/`https_proxy` env variables were no longer supported in the S3 backend ([#1594](https://github.com/opentofu/opentofu/issues/1594))
-* Fixed issue with migration between versions can cause an update in-place for resources when no changes are needed. ([#1640](https://github.com/opentofu/opentofu/pull/1640))
-* Add source context for the 'insufficient feature blocks' error ([#1777](https://github.com/opentofu/opentofu/pull/1777))
-* Remove encryption diags from autocomplete ([#1793](https://github.com/opentofu/opentofu/pull/1793))
-* Ensure that using a sensitive path for templatefile that it doesn't panic([#1801](https://github.com/opentofu/opentofu/issues/1801))
+* `templatefile` no longer crashes if the given filename is derived from a sensitive value. ([#1801](https://github.com/opentofu/opentofu/issues/1801))
+* Configuration loading no longer crashes when a `module` block lacks the required `source` argument. ([#1888](https://github.com/opentofu/opentofu/pull/1888))
+* The `tofu force-unlock` command now returns a relevant error when used with a backend that is not configured to support locking. ([#1977](https://github.com/opentofu/opentofu/pull/1977))
+* Configuration generation during import no longer crashes if an imported object includes sensitive values. ([#1986](https://github.com/opentofu/opentofu/pull/1986), [#2077](https://github.com/opentofu/opentofu/pull/2077))
+* `.tfvars` files from the `tests` directly are no longer incorrectly loaded for non-test commands. ([#2039](https://github.com/opentofu/opentofu/pull/2039))
+* `tofu console`'s interactive mode now handles the special `exit` command correctly. ([#2086](https://github.com/opentofu/opentofu/pull/2086))
+* Provider-contributed functions are now called correctly when used in the `validation` block of an input variable declaration. ([#2052](https://github.com/opentofu/opentofu/pull/2052))
+* Sensitive values are now prohibited in early evaluation of backend configuration and module source locations, because otherwise they would be exposed as a side effect of initializing the backend or installing a module. ([#2045](https://github.com/opentofu/opentofu/pull/2045))
+* `tofu providers mirror` no longer crashes when the dependency lock file has missing or invalid entries. ([#1985](https://github.com/opentofu/opentofu/pull/1985))
+* OpenTofu now respects a provider-contributed functions' request to be called only when its arguments are fully known, for compatibility with functions that cannot handle unknown values themselves. ([#2127](https://github.com/opentofu/opentofu/pull/2127))
+* `tofu init` no longer duplicates diagnostic messages produced when evaluating early-evaluation expressions. ([#1890](https://github.com/opentofu/opentofu/pull/1890))
+* `tofu plan` change description now includes information about configuration blocks generated using a `dynamic` block with an unknown `for_each` value. ([#1948](https://github.com/opentofu/opentofu/pull/1948))
+* Error message about a provider type mismatch now correctly identifies which module contains the problem. ([#1991](https://github.com/opentofu/opentofu/pull/1991))
+* The `yamldecode` function's interpretation of scalars as numbers now conforms to the YAML 1.2 specification. In particular, the scalar value `+` is now interpreted as the string `"+"` rather than returning a parse error trying to interpret it as an integer. ([#2044](https://github.com/opentofu/opentofu/pull/2044))
+* A `module` block's `version` argument now accepts prerelease version selections using a "v" prefix before the version number. Previously this was accepted only for non-prerelease selections. ([#2124])(https://github.com/opentofu/opentofu/issues/2124)
+* The `tofu test` command doesn't try to validate mock provider definition by its underlying provider schema now. ([#2140](https://github.com/opentofu/opentofu/pull/2140))
+* Type validation for mocks and overrides are now less strict in `tofu test`. ([#2144](https://github.com/opentofu/opentofu/pull/2144))
+* Skip imports blocks logic on `tofu destroy` ([#2214](https://github.com/opentofu/opentofu/pull/2214))
+* Updated github.com/golang-jwt/jwt/v4 from 4.4.2 to 4.5.1 to make security scanners happy (no vulnerability, see [#2179](https://github.com/opentofu/opentofu/pull/2179))
+* `tofu test` is now setting `null`s for dynamic type when generating mock values. ([#2245](https://github.com/opentofu/opentofu/pull/2245))
+* Variables declared in test files are now taking into account type default values. ([#2244](https://github.com/opentofu/opentofu/pull/2244))
+* `tofu test` now removes outputs of destroyed modules between different test runs. ([#2274](https://github.com/opentofu/opentofu/pull/2274))
+* Changes in `create_before_destroy` for resources which require replacement are now properly handled when refresh is disabled. ([#2248](https://github.com/opentofu/opentofu/pull/2248))
+* `tofu init` command does not attempt to read encryption keys when `-backend=false` flag is set. (https://github.com/opentofu/opentofu/pull/2293)

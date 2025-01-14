@@ -14,11 +14,12 @@ import (
 	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/encryption/config"
 	"github.com/opentofu/opentofu/internal/lang"
+	"github.com/opentofu/opentofu/internal/lang/marks"
 
 	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/opentofu/opentofu/internal/encryption/keyprovider"
 	"github.com/opentofu/opentofu/internal/encryption/registry"
-	"github.com/opentofu/opentofu/internal/gohcl"
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -29,15 +30,20 @@ func (e *targetBuilder) setupKeyProviders() hcl.Diagnostics {
 
 	e.keyValues = make(map[string]map[string]cty.Value)
 
+	kpMap := make(map[string]cty.Value)
 	for _, keyProviderConfig := range e.cfg.KeyProviderConfigs {
 		diags = append(diags, e.setupKeyProvider(keyProviderConfig, nil)...)
+		if diags.HasErrors() {
+			return diags
+		}
+		for name, kps := range e.keyValues {
+			kpMap[name] = cty.ObjectVal(kps)
+		}
+		e.ctx.Variables["key_provider"] = cty.ObjectVal(kpMap)
 	}
 
-	// Regenerate the context now that the key provider is loaded
-	kpMap := make(map[string]cty.Value)
-	for name, kps := range e.keyValues {
-		kpMap[name] = cty.ObjectVal(kps)
-	}
+	// Make sure that the key_provider variable is set even if no key providers are configured. This will ultimately
+	// result in an error, but we want to avoid unpredictable behavior.
 	e.ctx.Variables["key_provider"] = cty.ObjectVal(kpMap)
 
 	return diags
@@ -57,7 +63,7 @@ func (e *targetBuilder) setupKeyProvider(cfg config.KeyProviderConfig, stack []c
 	}
 
 	// Mark this key provider as partially handled.  This value will be replaced below once it is actually known.
-	// The goal is to allow an early return via the above if statement to prevent duplicate errors if errors are encoutered in the key loading stack.
+	// The goal is to allow an early return via the above if statement to prevent duplicate errors if errors are encountered in the key loading stack.
 	e.keyValues[cfg.Type][cfg.Name] = cty.UnknownVal(cty.DynamicPseudoType)
 
 	// Check for circular references, this is done by inspecting the stack of key providers
@@ -81,9 +87,13 @@ func (e *targetBuilder) setupKeyProvider(cfg config.KeyProviderConfig, stack []c
 	stack = append(stack, cfg)
 
 	// Pull the meta key out for error messages and meta storage
-	metakey, diags := cfg.Addr()
+	tmpMetaKey, diags := cfg.Addr()
 	if diags.HasErrors() {
 		return diags
+	}
+	metaKey := keyprovider.MetaStorageKey(tmpMetaKey)
+	if cfg.EncryptedMetadataAlias != "" {
+		metaKey = keyprovider.MetaStorageKey(cfg.EncryptedMetadataAlias)
 	}
 
 	// Lookup the KeyProviderDescriptor from the registry
@@ -127,15 +137,27 @@ func (e *targetBuilder) setupKeyProvider(cfg config.KeyProviderConfig, stack []c
 			continue
 		}
 
-		// TODO this should be more defensive
+		//nolint:errcheck // This will always be a TraverseRoot, panic is OK if that's not the case
 		depRoot := (dep[0].(hcl.TraverseRoot)).Name
-		depType := (dep[1].(hcl.TraverseAttr)).Name
-		depName := (dep[2].(hcl.TraverseAttr)).Name
-
 		if depRoot != "key_provider" {
 			nonKeyProviderDeps = append(nonKeyProviderDeps, dep)
 			continue
 		}
+		depTypeAttr, typeOk := dep[1].(hcl.TraverseAttr)
+		depNameAttr, nameOk := dep[2].(hcl.TraverseAttr)
+
+		if !typeOk || !nameOk {
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  "Invalid Key Provider expression format",
+				Detail:   "Expected key_provider.<type>.<name>",
+				Subject:  dep.SourceRange().Ptr(),
+			})
+			continue
+		}
+
+		depType := depTypeAttr.Name
+		depName := depNameAttr.Name
 
 		kpc, ok := e.cfg.GetKeyProvider(depType, depName)
 		if !ok {
@@ -175,6 +197,14 @@ func (e *targetBuilder) setupKeyProvider(cfg config.KeyProviderConfig, stack []c
 		return diags
 	}
 
+	// gohcl does not handle marks, we need to remove the sensitive marks from any input variables
+	// We assume that the entire configuration in the encryption block should be treated as sensitive
+	for key, sv := range evalCtx.Variables {
+		if marks.Contains(sv, marks.Sensitive) {
+			evalCtx.Variables[key], _ = sv.UnmarkDeep()
+		}
+	}
+
 	// Initialize the Key Provider
 	decodeDiags := gohcl.DecodeBody(cfg.Body, evalCtx, keyProviderConfig)
 	diags = append(diags, decodeDiags...)
@@ -188,18 +218,18 @@ func (e *targetBuilder) setupKeyProvider(cfg config.KeyProviderConfig, stack []c
 		return append(diags, &hcl.Diagnostic{
 			Severity: hcl.DiagError,
 			Summary:  "Unable to build encryption key data",
-			Detail:   fmt.Sprintf("%s failed with error: %s", metakey, err.Error()),
+			Detail:   fmt.Sprintf("%s failed with error: %s", metaKey, err.Error()),
 		})
 	}
 
 	// Add the metadata
-	if meta, ok := e.keyProviderMetadata[metakey]; ok {
+	if meta, ok := e.inputKeyProviderMetadata[metaKey]; ok {
 		err := json.Unmarshal(meta, keyMetaIn)
 		if err != nil {
 			return append(diags, &hcl.Diagnostic{
 				Severity: hcl.DiagError,
 				Summary:  "Unable to decode encrypted metadata (did you change your encryption config?)",
-				Detail:   fmt.Sprintf("metadata decoder for %s failed with error: %s", metakey, err.Error()),
+				Detail:   fmt.Sprintf("metadata decoder for %s failed with error: %s", metaKey, err.Error()),
 			})
 		}
 	}
@@ -209,18 +239,25 @@ func (e *targetBuilder) setupKeyProvider(cfg config.KeyProviderConfig, stack []c
 		return append(diags, &hcl.Diagnostic{
 			Severity: hcl.DiagError,
 			Summary:  "Unable to fetch encryption key data",
-			Detail:   fmt.Sprintf("%s failed with error: %s", metakey, err.Error()),
+			Detail:   fmt.Sprintf("%s failed with error: %s", metaKey, err.Error()),
 		})
 	}
 
 	if keyMetaOut != nil {
-		e.keyProviderMetadata[metakey], err = json.Marshal(keyMetaOut)
+		if _, ok := e.outputKeyProviderMetadata[metaKey]; ok {
+			return append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  "Duplicate metadata key",
+				Detail:   fmt.Sprintf("The metadata key %s is duplicated across multiple key providers for the same method; use the encrypted_metadata_alias option to specify unique metadata keys for each key provider in an encryption method", metaKey),
+			})
+		}
+		e.outputKeyProviderMetadata[metaKey], err = json.Marshal(keyMetaOut)
 
 		if err != nil {
 			return append(diags, &hcl.Diagnostic{
 				Severity: hcl.DiagError,
 				Summary:  "Unable to encode encrypted metadata",
-				Detail:   fmt.Sprintf("metadata encoder for %s failed with error: %s", metakey, err.Error()),
+				Detail:   fmt.Sprintf("The metadata encoder for %s failed with error: %s", metaKey, err.Error()),
 			})
 		}
 	}

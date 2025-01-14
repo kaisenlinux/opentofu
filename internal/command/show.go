@@ -69,6 +69,7 @@ func (c *ShowCommand) Run(rawArgs []string) int {
 		return 1
 	}
 	c.viewType = args.ViewType
+	c.View.SetShowSensitive(args.ShowSensitive)
 
 	// Set up view
 	view := views.NewShow(args.ViewType, c.View)
@@ -114,8 +115,11 @@ Usage: tofu [global options] show [options] [path]
 Options:
 
   -no-color           If specified, output won't contain any color.
+
   -json               If specified, output the OpenTofu plan or state in
                       a machine-readable form.
+
+  -show-sensitive     If specified, sensitive values will be displayed.
 
   -var 'foo=bar'      Set a value for one of the input variables in the root
                       module of the configuration. Use this option more than
@@ -136,7 +140,7 @@ func (c *ShowCommand) Synopsis() string {
 
 func (c *ShowCommand) GatherVariables(args *arguments.Vars) {
 	// FIXME the arguments package currently trivially gathers variable related
-	// arguments in a heterogenous slice, in order to minimize the number of
+	// arguments in a heterogeneous slice, in order to minimize the number of
 	// code paths gathering variables during the transition to this structure.
 	// Once all commands that gather variables have been converted to this
 	// structure, we could move the variable gathering code to the arguments

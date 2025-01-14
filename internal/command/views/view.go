@@ -6,6 +6,7 @@
 package views
 
 import (
+	"github.com/hashicorp/hcl/v2"
 	"github.com/mitchellh/colorstring"
 	"github.com/opentofu/opentofu/internal/command/arguments"
 	"github.com/opentofu/opentofu/internal/command/format"
@@ -20,7 +21,9 @@ type View struct {
 	streams  *terminal.Streams
 	colorize *colorstring.Colorize
 
-	compactWarnings bool
+	compactWarnings     bool
+	consolidateWarnings bool
+	consolidateErrors   bool
 
 	// When this is true it's a hint that OpenTofu is being run indirectly
 	// via a wrapper script or other automation and so we may wish to replace
@@ -33,11 +36,14 @@ type View struct {
 	// only the important details.
 	concise bool
 
+	// showSensitive is used to display the value of variables marked as sensitive.
+	showSensitive bool
+
 	// This unfortunate wart is required to enable rendering of diagnostics which
 	// have associated source code in the configuration. This function pointer
 	// will be dereferenced as late as possible when rendering diagnostics in
 	// order to access the config loader cache.
-	configSources func() map[string][]byte
+	configSources func() map[string]*hcl.File
 }
 
 // Initialize a View with the given streams, a disabled colorize object, and a
@@ -50,7 +56,7 @@ func NewView(streams *terminal.Streams) *View {
 			Disable: true,
 			Reset:   true,
 		},
-		configSources: func() map[string][]byte { return nil },
+		configSources: func() map[string]*hcl.File { return nil },
 	}
 }
 
@@ -60,7 +66,7 @@ func NewView(streams *terminal.Streams) *View {
 // instead for situations where the user isn't running OpenTofu directly.
 //
 // For convenient use during initialization (in conjunction with NewView),
-// SetRunningInAutomation returns the reciever after modifying it.
+// SetRunningInAutomation returns the receiver after modifying it.
 func (v *View) SetRunningInAutomation(new bool) *View {
 	v.runningInAutomation = new
 	return v
@@ -74,12 +80,14 @@ func (v *View) RunningInAutomation() bool {
 func (v *View) Configure(view *arguments.View) {
 	v.colorize.Disable = view.NoColor
 	v.compactWarnings = view.CompactWarnings
+	v.consolidateWarnings = view.ConsolidateWarnings
+	v.consolidateErrors = view.ConsolidateErrors
 	v.concise = view.Concise
 }
 
 // SetConfigSources overrides the default no-op callback with a new function
 // pointer, and should be called when the config loader is initialized.
-func (v *View) SetConfigSources(cb func() map[string][]byte) {
+func (v *View) SetConfigSources(cb func() map[string]*hcl.File) {
 	v.configSources = cb
 }
 
@@ -92,7 +100,12 @@ func (v *View) Diagnostics(diags tfdiags.Diagnostics) {
 		return
 	}
 
-	diags = diags.ConsolidateWarnings(1)
+	if v.consolidateWarnings {
+		diags = diags.Consolidate(1, tfdiags.Warning)
+	}
+	if v.consolidateErrors {
+		diags = diags.Consolidate(1, tfdiags.Error)
+	}
 
 	// Since warning messages are generally competing
 	if v.compactWarnings {
@@ -169,4 +182,8 @@ func (v *View) errorColumns() int {
 // visually de-emphasize it.
 func (v *View) outputHorizRule() {
 	v.streams.Println(format.HorizontalRule(v.colorize, v.outputColumns()))
+}
+
+func (v *View) SetShowSensitive(showSensitive bool) {
+	v.showSensitive = showSensitive
 }

@@ -35,6 +35,8 @@ func (c *OutputCommand) Run(rawArgs []string) int {
 		return 1
 	}
 
+	c.View.SetShowSensitive(args.ShowSensitive)
+
 	view := views.NewOutput(args.ViewType, c.View)
 
 	// Inject variables from args into meta for static evaluation
@@ -109,7 +111,7 @@ func (c *OutputCommand) Outputs(statePath string, enc encryption.Encryption) (ma
 
 func (c *OutputCommand) GatherVariables(args *arguments.Vars) {
 	// FIXME the arguments package currently trivially gathers variable related
-	// arguments in a heterogenous slice, in order to minimize the number of
+	// arguments in a heterogeneous slice, in order to minimize the number of
 	// code paths gathering variables during the transition to this structure.
 	// Once all commands that gather variables have been converted to this
 	// structure, we could move the variable gathering code to the arguments
@@ -148,6 +150,8 @@ Options:
                      converted to a string, will print the raw
                      string directly, rather than a human-oriented
                      representation of the value.
+
+  -show-sensitive    If specified, sensitive values will be displayed.
 
   -var 'foo=bar'     Set a value for one of the input variables in the root
                      module of the configuration. Use this option more than

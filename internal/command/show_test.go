@@ -148,6 +148,7 @@ func TestShow_argsWithStateAliasedProvider(t *testing.T) {
 				Dependencies: []addrs.ConfigResource{},
 			},
 			addrs.RootModuleInstance.ProviderConfigAliased(addrs.NewDefaultProvider("test"), "alias"),
+			addrs.NoKey,
 		)
 	})
 
@@ -998,6 +999,80 @@ func TestShow_corruptStatefile(t *testing.T) {
 	if !strings.Contains(got, want) {
 		t.Errorf("unexpected output\ngot: %s\nwant:\n%s", got, want)
 	}
+}
+
+func TestShow_showSensitiveArg(t *testing.T) {
+	td := t.TempDir()
+	defer testChdir(t, td)()
+
+	originalState := stateWithSensitiveValueForShow()
+
+	testStateFileDefault(t, originalState)
+
+	view, done := testView(t)
+	c := &ShowCommand{
+		Meta: Meta{
+			testingOverrides: metaOverridesForProvider(testProvider()),
+			View:             view,
+		},
+	}
+
+	args := []string{
+		"-show-sensitive",
+	}
+	code := c.Run(args)
+	output := done(t)
+	if code != 0 {
+		t.Fatalf("bad: \n%s", output.Stderr())
+	}
+
+	actual := strings.TrimSpace(output.Stdout())
+	expected := "Outputs:\n\nfoo = \"bar\""
+	if actual != expected {
+		t.Fatalf("got incorrect output: %#v", actual)
+	}
+}
+
+func TestShow_withoutShowSensitiveArg(t *testing.T) {
+	td := t.TempDir()
+	defer testChdir(t, td)()
+
+	originalState := stateWithSensitiveValueForShow()
+
+	testStateFileDefault(t, originalState)
+
+	view, done := testView(t)
+	c := &ShowCommand{
+		Meta: Meta{
+			testingOverrides: metaOverridesForProvider(testProvider()),
+			View:             view,
+		},
+	}
+
+	code := c.Run([]string{})
+	output := done(t)
+	if code != 0 {
+		t.Fatalf("bad: \n%s", output.Stderr())
+	}
+
+	actual := strings.TrimSpace(output.Stdout())
+	expected := "Outputs:\n\nfoo = (sensitive value)"
+	if actual != expected {
+		t.Fatalf("got incorrect output: %#v", actual)
+	}
+}
+
+// stateWithSensitiveValueForShow return a state with an output value
+// marked as sensitive.
+func stateWithSensitiveValueForShow() *states.State {
+	state := states.BuildState(func(s *states.SyncState) {
+		s.SetOutputValue(
+			addrs.OutputValue{Name: "foo"}.Absolute(addrs.RootModuleInstance),
+			cty.StringVal("bar"),
+			true,
+		)
+	})
+	return state
 }
 
 // showFixtureSchema returns a schema suitable for processing the configuration

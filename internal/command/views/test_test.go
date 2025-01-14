@@ -8,6 +8,7 @@ package views
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -664,7 +665,7 @@ Plan: 1 to add, 0 to change, 0 to destroy.
 									Namespace: "hashicorp",
 									Type:      "test",
 								},
-							})
+							}, addrs.NoKey)
 					}),
 					Config: &configs.Config{},
 					Providers: map[addrs.Provider]providers.ProviderSchema{
@@ -811,7 +812,7 @@ this time it is very bad
 					addrs.AbsProviderConfig{
 						Module:   addrs.RootModule,
 						Provider: addrs.NewDefaultProvider("test"),
-					})
+					}, addrs.NoKey)
 				state.SetResourceInstanceCurrent(
 					addrs.Resource{
 						Mode: addrs.ManagedResourceMode,
@@ -824,7 +825,7 @@ this time it is very bad
 					addrs.AbsProviderConfig{
 						Module:   addrs.RootModule,
 						Provider: addrs.NewDefaultProvider("test"),
-					})
+					}, addrs.NoKey)
 				state.SetResourceInstanceDeposed(
 					addrs.Resource{
 						Mode: addrs.ManagedResourceMode,
@@ -838,7 +839,7 @@ this time it is very bad
 					addrs.AbsProviderConfig{
 						Module:   addrs.RootModule,
 						Provider: addrs.NewDefaultProvider("test"),
-					})
+					}, addrs.NoKey)
 			}),
 			stdout: `
 Warning: first warning
@@ -879,7 +880,7 @@ up manually:
 					addrs.AbsProviderConfig{
 						Module:   addrs.RootModule,
 						Provider: addrs.NewDefaultProvider("test"),
-					})
+					}, addrs.NoKey)
 				state.SetResourceInstanceCurrent(
 					addrs.Resource{
 						Mode: addrs.ManagedResourceMode,
@@ -892,7 +893,7 @@ up manually:
 					addrs.AbsProviderConfig{
 						Module:   addrs.RootModule,
 						Provider: addrs.NewDefaultProvider("test"),
-					})
+					}, addrs.NoKey)
 				state.SetResourceInstanceDeposed(
 					addrs.Resource{
 						Mode: addrs.ManagedResourceMode,
@@ -906,7 +907,7 @@ up manually:
 					addrs.AbsProviderConfig{
 						Module:   addrs.RootModule,
 						Provider: addrs.NewDefaultProvider("test"),
-					})
+					}, addrs.NoKey)
 			}),
 			stdout: `
 Warning: first warning
@@ -953,7 +954,7 @@ up manually:
 					addrs.AbsProviderConfig{
 						Module:   addrs.RootModule,
 						Provider: addrs.NewDefaultProvider("null"),
-					})
+					}, addrs.NoKey)
 				state.SetResourceInstanceCurrent(
 					addrs.Resource{
 						Mode: addrs.ManagedResourceMode,
@@ -977,7 +978,7 @@ up manually:
 					addrs.AbsProviderConfig{
 						Module:   addrs.RootModule,
 						Provider: addrs.NewDefaultProvider("null"),
-					})
+					}, addrs.NoKey)
 			}),
 			stdout: `
 Warning: first warning
@@ -1095,7 +1096,7 @@ OpenTofu was in the process of creating the following resources for
 							},
 						},
 						&states.ResourceInstanceObjectSrc{},
-						addrs.AbsProviderConfig{})
+						addrs.AbsProviderConfig{}, addrs.NoKey)
 
 					state.SetResourceInstanceCurrent(
 						addrs.AbsResourceInstance{
@@ -1109,7 +1110,7 @@ OpenTofu was in the process of creating the following resources for
 							},
 						},
 						&states.ResourceInstanceObjectSrc{},
-						addrs.AbsProviderConfig{})
+						addrs.AbsProviderConfig{}, addrs.NoKey)
 				}),
 			},
 			created: nil,
@@ -1145,7 +1146,7 @@ test:
 							},
 						},
 						&states.ResourceInstanceObjectSrc{},
-						addrs.AbsProviderConfig{})
+						addrs.AbsProviderConfig{}, addrs.NoKey)
 
 					state.SetResourceInstanceCurrent(
 						addrs.AbsResourceInstance{
@@ -1159,7 +1160,7 @@ test:
 							},
 						},
 						&states.ResourceInstanceObjectSrc{},
-						addrs.AbsProviderConfig{})
+						addrs.AbsProviderConfig{}, addrs.NoKey)
 				}),
 			},
 			created: nil,
@@ -1195,7 +1196,7 @@ OpenTofu has already created the following resources for "setup_block" from
 							},
 						},
 						&states.ResourceInstanceObjectSrc{},
-						addrs.AbsProviderConfig{})
+						addrs.AbsProviderConfig{}, addrs.NoKey)
 
 					state.SetResourceInstanceCurrent(
 						addrs.AbsResourceInstance{
@@ -1209,7 +1210,7 @@ OpenTofu has already created the following resources for "setup_block" from
 							},
 						},
 						&states.ResourceInstanceObjectSrc{},
-						addrs.AbsProviderConfig{})
+						addrs.AbsProviderConfig{}, addrs.NoKey)
 				}),
 				nil: states.BuildState(func(state *states.SyncState) {
 					state.SetResourceInstanceCurrent(
@@ -1224,7 +1225,7 @@ OpenTofu has already created the following resources for "setup_block" from
 							},
 						},
 						&states.ResourceInstanceObjectSrc{},
-						addrs.AbsProviderConfig{})
+						addrs.AbsProviderConfig{}, addrs.NoKey)
 
 					state.SetResourceInstanceCurrent(
 						addrs.AbsResourceInstance{
@@ -1238,7 +1239,7 @@ OpenTofu has already created the following resources for "setup_block" from
 							},
 						},
 						&states.ResourceInstanceObjectSrc{},
-						addrs.AbsProviderConfig{})
+						addrs.AbsProviderConfig{}, addrs.NoKey)
 				}),
 			},
 			created: []*plans.ResourceInstanceChangeSrc{
@@ -2020,7 +2021,7 @@ func TestTestJSON_DestroySummary(t *testing.T) {
 					addrs.AbsProviderConfig{
 						Module:   addrs.RootModule,
 						Provider: addrs.NewDefaultProvider("test"),
-					})
+					}, addrs.NoKey)
 			}),
 			want: []map[string]interface{}{
 				{
@@ -2059,7 +2060,7 @@ func TestTestJSON_DestroySummary(t *testing.T) {
 					addrs.AbsProviderConfig{
 						Module:   addrs.RootModule,
 						Provider: addrs.NewDefaultProvider("test"),
-					})
+					}, addrs.NoKey)
 				state.SetResourceInstanceCurrent(
 					addrs.Resource{
 						Mode: addrs.ManagedResourceMode,
@@ -2072,7 +2073,7 @@ func TestTestJSON_DestroySummary(t *testing.T) {
 					addrs.AbsProviderConfig{
 						Module:   addrs.RootModule,
 						Provider: addrs.NewDefaultProvider("test"),
-					})
+					}, addrs.NoKey)
 				state.SetResourceInstanceDeposed(
 					addrs.Resource{
 						Mode: addrs.ManagedResourceMode,
@@ -2086,7 +2087,7 @@ func TestTestJSON_DestroySummary(t *testing.T) {
 					addrs.AbsProviderConfig{
 						Module:   addrs.RootModule,
 						Provider: addrs.NewDefaultProvider("test"),
-					})
+					}, addrs.NoKey)
 			}),
 			want: []map[string]interface{}{
 				{
@@ -2156,7 +2157,7 @@ func TestTestJSON_DestroySummary(t *testing.T) {
 					addrs.AbsProviderConfig{
 						Module:   addrs.RootModule,
 						Provider: addrs.NewDefaultProvider("test"),
-					})
+					}, addrs.NoKey)
 				state.SetResourceInstanceCurrent(
 					addrs.Resource{
 						Mode: addrs.ManagedResourceMode,
@@ -2169,7 +2170,7 @@ func TestTestJSON_DestroySummary(t *testing.T) {
 					addrs.AbsProviderConfig{
 						Module:   addrs.RootModule,
 						Provider: addrs.NewDefaultProvider("test"),
-					})
+					}, addrs.NoKey)
 				state.SetResourceInstanceDeposed(
 					addrs.Resource{
 						Mode: addrs.ManagedResourceMode,
@@ -2183,7 +2184,7 @@ func TestTestJSON_DestroySummary(t *testing.T) {
 					addrs.AbsProviderConfig{
 						Module:   addrs.RootModule,
 						Provider: addrs.NewDefaultProvider("test"),
-					})
+					}, addrs.NoKey)
 			}),
 			want: []map[string]interface{}{
 				{
@@ -2265,7 +2266,7 @@ func TestTestJSON_DestroySummary(t *testing.T) {
 					addrs.AbsProviderConfig{
 						Module:   addrs.RootModule,
 						Provider: addrs.NewDefaultProvider("null"),
-					})
+					}, addrs.NoKey)
 				state.SetResourceInstanceCurrent(
 					addrs.Resource{
 						Mode: addrs.ManagedResourceMode,
@@ -2289,7 +2290,7 @@ func TestTestJSON_DestroySummary(t *testing.T) {
 					addrs.AbsProviderConfig{
 						Module:   addrs.RootModule,
 						Provider: addrs.NewDefaultProvider("null"),
-					})
+					}, addrs.NoKey)
 			}), want: []map[string]interface{}{
 				{
 					"@level":    "error",
@@ -2863,7 +2864,7 @@ func TestTestJSON_Run(t *testing.T) {
 									Namespace: "hashicorp",
 									Type:      "test",
 								},
-							})
+							}, addrs.NoKey)
 					}),
 					Config: &configs.Config{
 						Module: &configs.Module{},
@@ -3020,7 +3021,7 @@ func TestTestJSON_FatalInterruptSummary(t *testing.T) {
 							},
 						},
 						&states.ResourceInstanceObjectSrc{},
-						addrs.AbsProviderConfig{})
+						addrs.AbsProviderConfig{}, addrs.NoKey)
 
 					state.SetResourceInstanceCurrent(
 						addrs.AbsResourceInstance{
@@ -3034,7 +3035,7 @@ func TestTestJSON_FatalInterruptSummary(t *testing.T) {
 							},
 						},
 						&states.ResourceInstanceObjectSrc{},
-						addrs.AbsProviderConfig{})
+						addrs.AbsProviderConfig{}, addrs.NoKey)
 				}),
 			},
 			changes: nil,
@@ -3073,7 +3074,7 @@ func TestTestJSON_FatalInterruptSummary(t *testing.T) {
 							},
 						},
 						&states.ResourceInstanceObjectSrc{},
-						addrs.AbsProviderConfig{})
+						addrs.AbsProviderConfig{}, addrs.NoKey)
 
 					state.SetResourceInstanceCurrent(
 						addrs.AbsResourceInstance{
@@ -3087,7 +3088,7 @@ func TestTestJSON_FatalInterruptSummary(t *testing.T) {
 							},
 						},
 						&states.ResourceInstanceObjectSrc{},
-						addrs.AbsProviderConfig{})
+						addrs.AbsProviderConfig{}, addrs.NoKey)
 				}),
 			},
 			changes: nil,
@@ -3128,7 +3129,7 @@ func TestTestJSON_FatalInterruptSummary(t *testing.T) {
 							},
 						},
 						&states.ResourceInstanceObjectSrc{},
-						addrs.AbsProviderConfig{})
+						addrs.AbsProviderConfig{}, addrs.NoKey)
 
 					state.SetResourceInstanceCurrent(
 						addrs.AbsResourceInstance{
@@ -3142,7 +3143,7 @@ func TestTestJSON_FatalInterruptSummary(t *testing.T) {
 							},
 						},
 						&states.ResourceInstanceObjectSrc{},
-						addrs.AbsProviderConfig{})
+						addrs.AbsProviderConfig{}, addrs.NoKey)
 				}),
 				nil: states.BuildState(func(state *states.SyncState) {
 					state.SetResourceInstanceCurrent(
@@ -3157,7 +3158,7 @@ func TestTestJSON_FatalInterruptSummary(t *testing.T) {
 							},
 						},
 						&states.ResourceInstanceObjectSrc{},
-						addrs.AbsProviderConfig{})
+						addrs.AbsProviderConfig{}, addrs.NoKey)
 
 					state.SetResourceInstanceCurrent(
 						addrs.AbsResourceInstance{
@@ -3171,7 +3172,7 @@ func TestTestJSON_FatalInterruptSummary(t *testing.T) {
 							},
 						},
 						&states.ResourceInstanceObjectSrc{},
-						addrs.AbsProviderConfig{})
+						addrs.AbsProviderConfig{}, addrs.NoKey)
 				}),
 			},
 			changes: []*plans.ResourceInstanceChangeSrc{
@@ -3278,7 +3279,7 @@ func TestSaveErroredStateFile(t *testing.T) {
 					addrs.AbsProviderConfig{
 						Module:   addrs.RootModule,
 						Provider: addrs.NewDefaultProvider("test"),
-					})
+					}, addrs.NoKey)
 				state.SetResourceInstanceCurrent(
 					addrs.Resource{
 						Mode: addrs.ManagedResourceMode,
@@ -3291,7 +3292,7 @@ func TestSaveErroredStateFile(t *testing.T) {
 					addrs.AbsProviderConfig{
 						Module:   addrs.RootModule,
 						Provider: addrs.NewDefaultProvider("test"),
-					})
+					}, addrs.NoKey)
 				state.SetResourceInstanceDeposed(
 					addrs.Resource{
 						Mode: addrs.ManagedResourceMode,
@@ -3305,7 +3306,7 @@ func TestSaveErroredStateFile(t *testing.T) {
 					addrs.AbsProviderConfig{
 						Module:   addrs.RootModule,
 						Provider: addrs.NewDefaultProvider("test"),
-					})
+					}, addrs.NoKey)
 			}),
 			stderr: `
 Writing state to file: errored_test.tfstate
@@ -3327,7 +3328,7 @@ Writing state to file: errored_test.tfstate
 					addrs.AbsProviderConfig{
 						Module:   addrs.RootModule,
 						Provider: addrs.NewDefaultProvider("null"),
-					})
+					}, addrs.NoKey)
 				state.SetResourceInstanceCurrent(
 					addrs.Resource{
 						Mode: addrs.ManagedResourceMode,
@@ -3351,7 +3352,7 @@ Writing state to file: errored_test.tfstate
 					addrs.AbsProviderConfig{
 						Module:   addrs.RootModule,
 						Provider: addrs.NewDefaultProvider("null"),
-					})
+					}, addrs.NoKey)
 			}),
 			stderr: `
 Writing state to file: errored_test.tfstate
@@ -3383,7 +3384,7 @@ Writing state to file: errored_test.tfstate
 					addrs.AbsProviderConfig{
 						Module:   addrs.RootModule,
 						Provider: addrs.NewDefaultProvider("test"),
-					})
+					}, addrs.NoKey)
 			}),
 			stderr: "",
 			want: []map[string]interface{}{
@@ -3409,7 +3410,7 @@ Writing state to file: errored_test.tfstate
 					addrs.AbsProviderConfig{
 						Module:   addrs.RootModule,
 						Provider: addrs.NewDefaultProvider("test"),
-					})
+					}, addrs.NoKey)
 				state.SetResourceInstanceCurrent(
 					addrs.Resource{
 						Mode: addrs.ManagedResourceMode,
@@ -3422,7 +3423,7 @@ Writing state to file: errored_test.tfstate
 					addrs.AbsProviderConfig{
 						Module:   addrs.RootModule,
 						Provider: addrs.NewDefaultProvider("test"),
-					})
+					}, addrs.NoKey)
 				state.SetResourceInstanceDeposed(
 					addrs.Resource{
 						Mode: addrs.ManagedResourceMode,
@@ -3436,7 +3437,7 @@ Writing state to file: errored_test.tfstate
 					addrs.AbsProviderConfig{
 						Module:   addrs.RootModule,
 						Provider: addrs.NewDefaultProvider("test"),
-					})
+					}, addrs.NoKey)
 			}),
 			stderr: "",
 			want: []map[string]interface{}{
@@ -3462,7 +3463,7 @@ Writing state to file: errored_test.tfstate
 					addrs.AbsProviderConfig{
 						Module:   addrs.RootModule,
 						Provider: addrs.NewDefaultProvider("null"),
-					})
+					}, addrs.NoKey)
 				state.SetResourceInstanceCurrent(
 					addrs.Resource{
 						Mode: addrs.ManagedResourceMode,
@@ -3486,7 +3487,7 @@ Writing state to file: errored_test.tfstate
 					addrs.AbsProviderConfig{
 						Module:   addrs.RootModule,
 						Provider: addrs.NewDefaultProvider("null"),
-					})
+					}, addrs.NoKey)
 			}),
 			stderr: "",
 			want: []map[string]interface{}{
@@ -3564,6 +3565,11 @@ func runTestSaveErroredStateFile(t *testing.T, tc map[string]struct {
 			if _, err := os.Stat(tempStateFilePath); os.IsNotExist(err) {
 				// File does not exist
 				t.Errorf("Expected state file 'errored_test.tfstate' to exist in: %s, but it does not.", tempDir)
+			}
+			// Trigger garbage collection to ensure that all open file handles are closed.
+			// This prevents TempDir RemoveAll cleanup errors on Windows.
+			if runtime.GOOS == "windows" {
+				runtime.GC()
 			}
 		})
 	}

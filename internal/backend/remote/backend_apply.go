@@ -161,6 +161,14 @@ func (b *Remote) opApply(stopCtx, cancelCtx context.Context, op *backend.Operati
 		}
 	}
 
+	if len(op.Excludes) != 0 {
+		diags = diags.Append(tfdiags.Sourceless(
+			tfdiags.Error,
+			"-exclude option is not supported",
+			"The -exclude option is not currently supported for remote plans.",
+		))
+	}
+
 	// Return if there are any errors.
 	if diags.HasErrors() {
 		return nil, diags.Err()
@@ -248,7 +256,7 @@ func (b *Remote) opApply(stopCtx, cancelCtx context.Context, op *backend.Operati
 	}
 
 	// If we don't need to ask for confirmation, insert a blank
-	// line to separate the ouputs.
+	// line to separate the outputs.
 	if w.AutoApply || !mustConfirm {
 		if b.CLI != nil {
 			b.CLI.Output("")

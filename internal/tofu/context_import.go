@@ -6,6 +6,7 @@
 package tofu
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"sync"
@@ -122,8 +123,11 @@ func (ri *ImportResolver) ExpandAndResolveImport(importTarget *ImportTarget, ctx
 	rootCtx := ctx.WithPath(addrs.RootModuleInstance)
 
 	if importTarget.Config.ForEach != nil {
+		const unknownsNotAllowed = false
+		const tupleAllowed = true
+
 		// The import target has a for_each attribute, so we need to expand it
-		forEachVal, evalDiags := evaluateForEachExpressionValue(importTarget.Config.ForEach, rootCtx, false, true)
+		forEachVal, evalDiags := evaluateForEachExpressionValue(importTarget.Config.ForEach, rootCtx, unknownsNotAllowed, tupleAllowed)
 		diags = diags.Append(evalDiags)
 		if diags.HasErrors() {
 			return diags
@@ -166,7 +170,7 @@ func (ri *ImportResolver) resolveImport(importTarget *ImportTarget, ctx EvalCont
 		return diags
 	}
 
-	importAddress, addressDiags := ctx.EvaluateImportAddress(importTarget.Config.To, keyData)
+	importAddress, addressDiags := evaluateImportAddress(ctx, importTarget.Config.To, keyData)
 	diags = diags.Append(addressDiags)
 	if diags.HasErrors() {
 		return diags
@@ -235,7 +239,7 @@ func (ri *ImportResolver) GetImport(address addrs.AbsResourceInstance) *Evaluate
 // Further, this operation also gracefully handles partial state. If during
 // an import there is a failure, all previously imported resources remain
 // imported.
-func (c *Context) Import(config *configs.Config, prevRunState *states.State, opts *ImportOpts) (*states.State, tfdiags.Diagnostics) {
+func (c *Context) Import(ctx context.Context, config *configs.Config, prevRunState *states.State, opts *ImportOpts) (*states.State, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
 	// Hold a lock since we can modify our own state here
@@ -248,14 +252,17 @@ func (c *Context) Import(config *configs.Config, prevRunState *states.State, opt
 
 	variables := opts.SetVariables
 
+	providerFunctionTracker := make(ProviderFunctionMapping)
+
 	// Initialize our graph builder
 	builder := &PlanGraphBuilder{
-		ImportTargets:      opts.Targets,
-		Config:             config,
-		State:              state,
-		RootVariableValues: variables,
-		Plugins:            c.plugins,
-		Operation:          walkImport,
+		ImportTargets:           opts.Targets,
+		Config:                  config,
+		State:                   state,
+		RootVariableValues:      variables,
+		Plugins:                 c.plugins,
+		Operation:               walkImport,
+		ProviderFunctionTracker: providerFunctionTracker,
 	}
 
 	// Build the graph
@@ -266,9 +273,10 @@ func (c *Context) Import(config *configs.Config, prevRunState *states.State, opt
 	}
 
 	// Walk it
-	walker, walkDiags := c.walk(graph, walkImport, &graphWalkOpts{
-		Config:     config,
-		InputState: state,
+	walker, walkDiags := c.walk(ctx, graph, walkImport, &graphWalkOpts{
+		Config:                  config,
+		InputState:              state,
+		ProviderFunctionTracker: providerFunctionTracker,
 	})
 	diags = diags.Append(walkDiags)
 	if walkDiags.HasErrors() {

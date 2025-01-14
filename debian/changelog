@@ -1,3 +1,9 @@
+opentofu (1.9.0-1kaisen) kaisen-packages; urgency=medium
+
+  * Import the 1.9.0 release
+
+ -- Kevin Chevreuil - Kaisen <kaisen@kaisenlinux.org>  Tue, 14 Jan 2025 14:30:03 +0200
+
 opentofu (1.8.1-1kaisen) kaisen-packages; urgency=medium
 
   * Import the 1.8.1 release

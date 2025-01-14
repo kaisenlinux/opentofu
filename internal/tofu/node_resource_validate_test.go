@@ -189,7 +189,7 @@ func TestNodeValidatableResource_ValidateResource_managedResource(t *testing.T) 
 		NodeAbstractResource: &NodeAbstractResource{
 			Addr:             mustConfigResourceAddr("test_foo.bar"),
 			Config:           rc,
-			ResolvedProvider: mustProviderConfig(`provider["registry.opentofu.org/hashicorp/aws"]`),
+			ResolvedProvider: ResolvedProvider{ProviderConfig: mustProviderConfig(`provider["registry.opentofu.org/hashicorp/aws"]`)},
 		},
 	}
 
@@ -257,7 +257,7 @@ func TestNodeValidatableResource_ValidateResource_managedResourceCount(t *testin
 				NodeAbstractResource: &NodeAbstractResource{
 					Addr:             mustConfigResourceAddr("test_foo.bar"),
 					Config:           rc,
-					ResolvedProvider: mustProviderConfig(`provider["registry.opentofu.org/hashicorp/aws"]`),
+					ResolvedProvider: ResolvedProvider{ProviderConfig: mustProviderConfig(`provider["registry.opentofu.org/hashicorp/aws"]`)},
 				},
 			}
 
@@ -303,7 +303,7 @@ func TestNodeValidatableResource_ValidateResource_dataSource(t *testing.T) {
 		NodeAbstractResource: &NodeAbstractResource{
 			Addr:             mustConfigResourceAddr("test_foo.bar"),
 			Config:           rc,
-			ResolvedProvider: mustProviderConfig(`provider["registry.opentofu.org/hashicorp/aws"]`),
+			ResolvedProvider: ResolvedProvider{ProviderConfig: mustProviderConfig(`provider["registry.opentofu.org/hashicorp/aws"]`)},
 		},
 	}
 
@@ -339,7 +339,7 @@ func TestNodeValidatableResource_ValidateResource_valid(t *testing.T) {
 		NodeAbstractResource: &NodeAbstractResource{
 			Addr:             mustConfigResourceAddr("test_object.foo"),
 			Config:           rc,
-			ResolvedProvider: mustProviderConfig(`provider["registry.opentofu.org/hashicorp/aws"]`),
+			ResolvedProvider: ResolvedProvider{ProviderConfig: mustProviderConfig(`provider["registry.opentofu.org/hashicorp/aws"]`)},
 		},
 	}
 
@@ -376,7 +376,7 @@ func TestNodeValidatableResource_ValidateResource_warningsAndErrorsPassedThrough
 		NodeAbstractResource: &NodeAbstractResource{
 			Addr:             mustConfigResourceAddr("test_foo.bar"),
 			Config:           rc,
-			ResolvedProvider: mustProviderConfig(`provider["registry.opentofu.org/hashicorp/aws"]`),
+			ResolvedProvider: ResolvedProvider{ProviderConfig: mustProviderConfig(`provider["registry.opentofu.org/hashicorp/aws"]`)},
 		},
 	}
 
@@ -418,7 +418,7 @@ func TestNodeValidatableResource_ValidateResource_invalidDependsOn(t *testing.T)
 		Config: configs.SynthBody("", map[string]cty.Value{}),
 		DependsOn: []hcl.Traversal{
 			// Depending on path.module is pointless, since it is immediately
-			// available, but we allow all of the referencable addrs here
+			// available, but we allow all of the referenceable addrs here
 			// for consistency: referencing them is harmless, and avoids the
 			// need for us to document a different subset of addresses that
 			// are valid in depends_on.
@@ -438,7 +438,7 @@ func TestNodeValidatableResource_ValidateResource_invalidDependsOn(t *testing.T)
 		NodeAbstractResource: &NodeAbstractResource{
 			Addr:             mustConfigResourceAddr("test_foo.bar"),
 			Config:           rc,
-			ResolvedProvider: mustProviderConfig(`provider["registry.opentofu.org/hashicorp/aws"]`),
+			ResolvedProvider: ResolvedProvider{ProviderConfig: mustProviderConfig(`provider["registry.opentofu.org/hashicorp/aws"]`)},
 		},
 	}
 
@@ -522,7 +522,7 @@ func TestNodeValidatableResource_ValidateResource_invalidIgnoreChangesNonexisten
 		NodeAbstractResource: &NodeAbstractResource{
 			Addr:             mustConfigResourceAddr("test_foo.bar"),
 			Config:           rc,
-			ResolvedProvider: mustProviderConfig(`provider["registry.opentofu.org/hashicorp/aws"]`),
+			ResolvedProvider: ResolvedProvider{ProviderConfig: mustProviderConfig(`provider["registry.opentofu.org/hashicorp/aws"]`)},
 		},
 	}
 
@@ -605,7 +605,7 @@ func TestNodeValidatableResource_ValidateResource_invalidIgnoreChangesComputed(t
 		NodeAbstractResource: &NodeAbstractResource{
 			Addr:             mustConfigResourceAddr("test_foo.bar"),
 			Config:           rc,
-			ResolvedProvider: mustProviderConfig(`provider["registry.opentofu.org/hashicorp/aws"]`),
+			ResolvedProvider: ResolvedProvider{ProviderConfig: mustProviderConfig(`provider["registry.opentofu.org/hashicorp/aws"]`)},
 		},
 	}
 

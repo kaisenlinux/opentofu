@@ -87,6 +87,11 @@ func (n *NodePlanDeposedResourceInstanceObject) References() []*addrs.Reference 
 func (n *NodePlanDeposedResourceInstanceObject) Execute(ctx EvalContext, op walkOperation) (diags tfdiags.Diagnostics) {
 	log.Printf("[TRACE] NodePlanDeposedResourceInstanceObject: planning %s deposed object %s", n.Addr, n.DeposedKey)
 
+	diags = n.resolveProvider(ctx, false, n.DeposedKey)
+	if diags.HasErrors() {
+		return diags
+	}
+
 	// Read the state for the deposed resource instance
 	state, err := n.readResourceInstanceStateDeposed(ctx, n.Addr, n.DeposedKey)
 	diags = diags.Append(err)
@@ -252,6 +257,11 @@ func (n *NodeDestroyDeposedResourceInstanceObject) ModifyCreateBeforeDestroy(v b
 func (n *NodeDestroyDeposedResourceInstanceObject) Execute(ctx EvalContext, op walkOperation) (diags tfdiags.Diagnostics) {
 	var change *plans.ResourceInstanceChange
 
+	diags = n.resolveProvider(ctx, false, n.DeposedKey)
+	if diags.HasErrors() {
+		return diags
+	}
+
 	// Read the state for the deposed resource instance
 	state, err := n.readResourceInstanceStateDeposed(ctx, n.Addr, n.DeposedKey)
 	if err != nil {
@@ -328,12 +338,12 @@ func (n *NodeDestroyDeposedResourceInstanceObject) writeResourceInstanceState(ct
 
 	if obj == nil {
 		// No need to encode anything: we'll just write it directly.
-		state.SetResourceInstanceDeposed(absAddr, key, nil, n.ResolvedProvider)
+		state.SetResourceInstanceDeposed(absAddr, key, nil, n.ResolvedProvider.ProviderConfig, n.ResolvedProviderKey)
 		log.Printf("[TRACE] writeResourceInstanceStateDeposed: removing state object for %s deposed %s", absAddr, key)
 		return nil
 	}
 
-	_, providerSchema, err := getProvider(ctx, n.ResolvedProvider)
+	_, providerSchema, err := getProvider(ctx, n.ResolvedProvider.ProviderConfig, n.ResolvedProviderKey)
 	if err != nil {
 		return err
 	}
@@ -351,7 +361,7 @@ func (n *NodeDestroyDeposedResourceInstanceObject) writeResourceInstanceState(ct
 	}
 
 	log.Printf("[TRACE] writeResourceInstanceStateDeposed: writing state object for %s deposed %s", absAddr, key)
-	state.SetResourceInstanceDeposed(absAddr, key, src, n.ResolvedProvider)
+	state.SetResourceInstanceDeposed(absAddr, key, src, n.ResolvedProvider.ProviderConfig, n.ResolvedProviderKey)
 	return nil
 }
 
@@ -399,6 +409,11 @@ func (n *NodeForgetDeposedResourceInstanceObject) References() []*addrs.Referenc
 
 // GraphNodeExecutable impl.
 func (n *NodeForgetDeposedResourceInstanceObject) Execute(ctx EvalContext, op walkOperation) (diags tfdiags.Diagnostics) {
+	diags = n.resolveProvider(ctx, false, n.DeposedKey)
+	if diags.HasErrors() {
+		return diags
+	}
+
 	// Read the state for the deposed resource instance
 	state, err := n.readResourceInstanceStateDeposed(ctx, n.Addr, n.DeposedKey)
 	if err != nil {

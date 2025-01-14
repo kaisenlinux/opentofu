@@ -311,6 +311,7 @@ func testState() *states.State {
 				Provider: addrs.NewDefaultProvider("test"),
 				Module:   addrs.RootModule,
 			},
+			addrs.NoKey,
 		)
 		// DeepCopy is used here to ensure our synthetic state matches exactly
 		// with a state that will have been copied during the command
@@ -843,9 +844,9 @@ func testRemoteState(t *testing.T, s *states.State, c int) (*legacy.State, *http
 	return retState, srv
 }
 
-// testlockState calls a separate process to the lock the state file at path.
+// testLockState calls a separate process to the lock the state file at path.
 // deferFunc should be called in the caller to properly unlock the file.
-// Since many tests change the working directory, the sourcedir argument must be
+// Since many tests change the working directory, the sourceDir argument must be
 // supplied to locate the statelocker.go source.
 func testLockState(t *testing.T, sourceDir, path string) (func(), error) {
 	// build and run the binary ourselves so we can quickly terminate it for cleanup
