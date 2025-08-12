@@ -21,7 +21,7 @@ type MockValueComposer struct {
 
 func NewMockValueComposer(seed int64) MockValueComposer {
 	return MockValueComposer{
-		rand: rand.New(rand.NewSource(seed)), //nolint:gosec // It doesn't need to be secure.
+		rand: rand.New(rand.NewSource(seed)),
 	}
 }
 
@@ -101,7 +101,17 @@ func (mvc MockValueComposer) composeMockValueForAttributes(schema *configschema.
 		// Non-computed attributes can't be generated
 		// so we set them from configuration only.
 		if !attr.Computed {
-			mockAttrs[k] = cty.NullVal(attr.Type)
+			if attr.NestedType != nil && attr.NestedType.Nesting == configschema.NestingGroup {
+				// This should not be possible to hit.  Neither tofu or the provider framework will allow
+				// NestingGroup in here.  However, this could change at some point and we want to be prepared for it.
+				diags = diags.Append(tfdiags.WholeContainingBody(
+					tfdiags.Error,
+					fmt.Sprintf("Unsupported field `%v` in attribute mocking", k),
+					"Overriding non-computed fields is not allowed, so this field cannot be processed.",
+				))
+				continue
+			}
+			mockAttrs[k] = cty.NullVal(attr.ImpliedType())
 			if _, ok := defaults[k]; ok {
 				diags = diags.Append(tfdiags.WholeContainingBody(
 					tfdiags.Error,
@@ -115,7 +125,7 @@ func (mvc MockValueComposer) composeMockValueForAttributes(schema *configschema.
 		// If the attribute is computed and not configured,
 		// we use provided value from defaults.
 		if ov, ok := defaults[k]; ok {
-			converted, err := convert.Convert(ov, attr.Type)
+			converted, err := convert.Convert(ov, attr.ImpliedType())
 			if err != nil {
 				diags = diags.Append(tfdiags.WholeContainingBody(
 					tfdiags.Error,
@@ -181,7 +191,7 @@ func (mvc MockValueComposer) composeMockValueForBlocks(schema *configschema.Bloc
 				diags = diags.Append(tfdiags.WholeContainingBody(
 					tfdiags.Error,
 					fmt.Sprintf("Invalid override for block field `%v`", k),
-					"Cannot overridde block value, because it's not present in configuration.",
+					"Cannot override block value, because it's not present in configuration.",
 				))
 				continue
 			}
@@ -244,9 +254,8 @@ func (mvc MockValueComposer) getMockValueForBlock(targetType cty.Type, configVal
 
 		if targetType.ListElementType() != nil {
 			return cty.ListVal(mockBlockVals), diags
-		} else {
-			return cty.SetVal(mockBlockVals), diags
 		}
+		return cty.SetVal(mockBlockVals), diags
 
 	case targetType.MapElementType() != nil:
 		var mockBlockVals = make(map[string]cty.Value)

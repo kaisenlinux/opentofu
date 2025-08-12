@@ -17,6 +17,7 @@ import (
 	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/tfdiags"
+	"github.com/opentofu/opentofu/internal/tracing"
 )
 
 // Input asks for input to fill unset required arguments in provider
@@ -36,8 +37,6 @@ import (
 // any other Context method with a different config, because the aforementioned
 // modified internal state won't match. Again, this is an architectural wart
 // that we'll hopefully resolve in future.
-//
-//nolint:cyclop,funlen,gocognit,nestif // Historical function predates our complexity rules
 func (c *Context) Input(ctx context.Context, config *configs.Config, mode InputMode) tfdiags.Diagnostics {
 	// This function used to be responsible for more than it is now, so its
 	// interface is more general than its current functionality requires.
@@ -52,7 +51,12 @@ func (c *Context) Input(ctx context.Context, config *configs.Config, mode InputM
 	var diags tfdiags.Diagnostics
 	defer c.acquireRun("input")()
 
-	schemas, moreDiags := c.Schemas(config, nil)
+	ctx, span := tracing.Tracer().Start(
+		ctx, "Gather input",
+	)
+	defer span.End()
+
+	schemas, moreDiags := c.Schemas(ctx, config, nil)
 	diags = diags.Append(moreDiags)
 	if moreDiags.HasErrors() {
 		return diags

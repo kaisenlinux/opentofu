@@ -380,7 +380,7 @@ func (p *GRPCProvider) ReadResource(r providers.ReadResourceRequest) (resp provi
 
 	resSchema, ok := schema.ResourceTypes[r.TypeName]
 	if !ok {
-		resp.Diagnostics = resp.Diagnostics.Append(fmt.Errorf("unknown resource type " + r.TypeName))
+		resp.Diagnostics = resp.Diagnostics.Append(fmt.Errorf("unknown resource type %s", r.TypeName))
 		return resp
 	}
 
@@ -623,6 +623,52 @@ func (p *GRPCProvider) ImportResourceState(r providers.ImportResourceStateReques
 		resource.State = state
 		resp.ImportedResources = append(resp.ImportedResources, resource)
 	}
+
+	return resp
+}
+
+func (p *GRPCProvider) MoveResourceState(r providers.MoveResourceStateRequest) providers.MoveResourceStateResponse {
+	logger.Trace("GRPCProvider.v6: MoveResourceState")
+	var resp providers.MoveResourceStateResponse
+
+	schema := p.GetProviderSchema()
+	if schema.Diagnostics.HasErrors() {
+		resp.Diagnostics = schema.Diagnostics
+		return resp
+	}
+
+	resourceSchema, ok := schema.ResourceTypes[r.TargetTypeName]
+	if !ok {
+		schema.Diagnostics = schema.Diagnostics.Append(fmt.Errorf("unknown data source %q", r.TargetTypeName))
+		return resp
+	}
+
+	protoReq := &proto6.MoveResourceState_Request{
+		SourceProviderAddress: r.SourceProviderAddress,
+		SourceTypeName:        r.SourceTypeName,
+		SourceSchemaVersion:   int64(r.SourceSchemaVersion),
+		SourceState: &proto6.RawState{
+			Json:    r.SourceStateJSON,
+			Flatmap: r.SourceStateFlatmap,
+		},
+		SourcePrivate:  r.SourcePrivate,
+		TargetTypeName: r.TargetTypeName,
+	}
+
+	protoResp, err := p.client.MoveResourceState(p.ctx, protoReq)
+	if err != nil {
+		resp.Diagnostics = resp.Diagnostics.Append(grpcErr(err))
+		return resp
+	}
+	resp.Diagnostics = resp.Diagnostics.Append(convert.ProtoToDiagnostics(protoResp.Diagnostics))
+
+	state, err := decodeDynamicValue(protoResp.TargetState, resourceSchema.Block.ImpliedType())
+	if err != nil {
+		resp.Diagnostics = resp.Diagnostics.Append(err)
+		return resp
+	}
+	resp.TargetState = state
+	resp.TargetPrivate = protoResp.TargetPrivate
 
 	return resp
 }

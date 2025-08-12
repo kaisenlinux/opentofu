@@ -11,6 +11,7 @@ import (
 	"os/signal"
 
 	"github.com/hashicorp/go-plugin"
+	"github.com/hashicorp/go-retryablehttp"
 	svchost "github.com/hashicorp/terraform-svchost"
 	"github.com/hashicorp/terraform-svchost/auth"
 	"github.com/hashicorp/terraform-svchost/disco"
@@ -21,6 +22,7 @@ import (
 	"github.com/opentofu/opentofu/internal/command/cliconfig"
 	"github.com/opentofu/opentofu/internal/command/views"
 	"github.com/opentofu/opentofu/internal/command/webbrowser"
+	"github.com/opentofu/opentofu/internal/getmodules"
 	"github.com/opentofu/opentofu/internal/getproviders"
 	pluginDiscovery "github.com/opentofu/opentofu/internal/plugin/discovery"
 	"github.com/opentofu/opentofu/internal/terminal"
@@ -60,6 +62,7 @@ func initCommands(
 	streams *terminal.Streams,
 	config *cliconfig.Config,
 	services *disco.Disco,
+	modulePkgFetcher *getmodules.PackageFetcher,
 	providerSrc getproviders.Source,
 	providerDevOverrides map[addrs.Provider]getproviders.PackageLocalDir,
 	unmanagedProviders map[addrs.Provider]*plugin.ReattachConfig,
@@ -107,6 +110,13 @@ func initCommands(
 		ShutdownCh:    makeShutdownCh(),
 		CallerContext: ctx,
 
+		MakeRegistryHTTPClient: func() *retryablehttp.Client {
+			// This ctx is used only to choose global configuration settings
+			// for the client, and is not retained as part of the result for
+			// making individual HTTP requests.
+			return newRegistryHTTPClient(ctx)
+		},
+		ModulePackageFetcher: modulePkgFetcher,
 		ProviderSource:       providerSrc,
 		ProviderDevOverrides: providerDevOverrides,
 		UnmanagedProviders:   unmanagedProviders,
@@ -441,14 +451,6 @@ func initCommands(
 				},
 			}, nil
 		},
-	}
-
-	if meta.AllowExperimentalFeatures {
-		commands["cloud"] = func() (cli.Command, error) {
-			return &command.CloudCommand{
-				Meta: meta,
-			}, nil
-		}
 	}
 
 	primaryCommands = []string{

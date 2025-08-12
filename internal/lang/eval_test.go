@@ -798,7 +798,6 @@ func TestScopeExpandEvalBlock(t *testing.T) {
 
 		})
 	}
-
 }
 
 func formattedJSONValue(val cty.Value) string {
@@ -808,7 +807,9 @@ func formattedJSONValue(val cty.Value) string {
 		panic(err)
 	}
 	var buf bytes.Buffer
-	json.Indent(&buf, j, "", "  ")
+	if err := json.Indent(&buf, j, "", "  "); err != nil {
+		panic(err)
+	}
 	return buf.String()
 }
 
@@ -1008,7 +1009,7 @@ func Test_enhanceFunctionDiags(t *testing.T) {
 			}
 
 			_, evalDiags := hcldec.Decode(body, spec, ctx)
-			diags := scope.enhanceFunctionDiags(evalDiags)
+			diags := enhanceFunctionDiags(evalDiags)
 			if len(diags) != 1 {
 				t.Fatalf("Expected 1 diag, got %d", len(diags))
 			}

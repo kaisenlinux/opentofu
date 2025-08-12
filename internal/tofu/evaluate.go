@@ -6,6 +6,7 @@
 package tofu
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -354,7 +355,6 @@ func (d *evaluationStateData) GetLocalValue(addr addrs.LocalValue, rng tfdiags.S
 
 func (d *evaluationStateData) GetModule(addr addrs.ModuleCall, rng tfdiags.SourceRange) (cty.Value, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
-
 	// Output results live in the module that declares them, which is one of
 	// the child module instances of our current module path.
 	moduleAddr := d.ModulePath.Module().Child(addr.Name)
@@ -390,6 +390,10 @@ func (d *evaluationStateData) GetModule(addr addrs.ModuleCall, rng tfdiags.Sourc
 		val := output.Value
 		if output.Sensitive {
 			val = val.Mark(marks.Sensitive)
+		}
+
+		if output.Deprecated != "" {
+			val = marks.DeprecatedOutput(val, output.Addr, output.Deprecated, parentCfg.IsModuleCallFromRemoteModule(addr.Name))
 		}
 
 		_, callInstance := output.Addr.Module.CallInstance()
@@ -471,6 +475,10 @@ func (d *evaluationStateData) GetModule(addr addrs.ModuleCall, rng tfdiags.Sourc
 
 			if change.Sensitive {
 				instance[cfg.Name] = change.After.Mark(marks.Sensitive)
+			}
+
+			if cfg.Deprecated != "" {
+				instance[cfg.Name] = marks.DeprecatedOutput(change.After, change.Addr, cfg.Deprecated, parentCfg.IsModuleCallFromRemoteModule(addr.Name))
 			}
 		}
 	}
@@ -739,6 +747,17 @@ func (d *evaluationStateData) GetResource(addr addrs.Resource, rng tfdiags.Sourc
 		}
 	}
 
+	// Fetch all instance data in a single call.  We previously used GetResourceInstanceChange in
+	// each loop iteration which caused n^2 locking contention.  This is especially problematic for
+	// resources with large count/for_each.
+	instChanges := d.Evaluator.Changes.GetChangesForConfigResource(addr.InModule(moduleConfig.Path))
+	instMap := map[string]*plans.ResourceInstanceChangeSrc{}
+	for _, rc := range instChanges {
+		if rc.DeposedKey == states.NotDeposed {
+			instMap[rc.Addr.String()] = rc
+		}
+	}
+
 	// Decode all instances in the current state
 	instances := map[addrs.InstanceKey]cty.Value{}
 	pendingDestroy := d.Operation == walkDestroy
@@ -751,7 +770,7 @@ func (d *evaluationStateData) GetResource(addr addrs.Resource, rng tfdiags.Sourc
 
 		instAddr := addr.Instance(key).Absolute(d.ModulePath)
 
-		change := d.Evaluator.Changes.GetResourceInstanceChange(instAddr, states.CurrentGen)
+		change := instMap[instAddr.String()]
 		if change != nil {
 			// Don't take any resources that are yet to be deleted into account.
 			// If the referenced resource is CreateBeforeDestroy, then orphaned
@@ -906,7 +925,8 @@ func (d *evaluationStateData) GetResource(addr addrs.Resource, rng tfdiags.Sourc
 }
 
 func (d *evaluationStateData) getResourceSchema(addr addrs.Resource, providerAddr addrs.Provider) *configschema.Block {
-	schema, _, err := d.Evaluator.Plugins.ResourceTypeSchema(providerAddr, addr.Mode, addr.Type)
+	// TODO: Plumb a useful context.Context through to here.
+	schema, _, err := d.Evaluator.Plugins.ResourceTypeSchema(context.TODO(), providerAddr, addr.Mode, addr.Type)
 	if err != nil {
 		// We have plenty of other codepaths that will detect and report
 		// schema lookup errors before we'd reach this point, so we'll just
@@ -994,6 +1014,15 @@ func (d *evaluationStateData) GetOutput(addr addrs.OutputValue, rng tfdiags.Sour
 
 		if output.Sensitive {
 			val = val.Mark(marks.Sensitive)
+		}
+
+		if config.Deprecated != "" {
+			isRemote := false
+			if p := moduleConfig.Path; p != nil && !p.IsRoot() {
+				_, call := p.Call()
+				isRemote = moduleConfig.IsModuleCallFromRemoteModule(call.Name)
+			}
+			val = marks.DeprecatedOutput(val, output.Addr, config.Deprecated, isRemote)
 		}
 
 		return val, diags

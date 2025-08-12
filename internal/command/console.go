@@ -55,14 +55,14 @@ func (c *ConsoleCommand) Run(args []string) int {
 	var diags tfdiags.Diagnostics
 
 	// Load the encryption configuration
-	enc, encDiags := c.EncryptionFromPath(configPath)
+	enc, encDiags := c.EncryptionFromPath(ctx, configPath)
 	diags = diags.Append(encDiags)
 	if encDiags.HasErrors() {
 		c.showDiagnostics(diags)
 		return 1
 	}
 
-	backendConfig, backendDiags := c.loadBackendConfig(configPath)
+	backendConfig, backendDiags := c.loadBackendConfig(ctx, configPath)
 	diags = diags.Append(backendDiags)
 	if diags.HasErrors() {
 		c.showDiagnostics(diags)
@@ -70,7 +70,7 @@ func (c *ConsoleCommand) Run(args []string) int {
 	}
 
 	// Load the backend
-	b, backendDiags := c.Backend(&BackendOpts{
+	b, backendDiags := c.Backend(ctx, &BackendOpts{
 		Config: backendConfig,
 	}, enc.State())
 	diags = diags.Append(backendDiags)
@@ -91,7 +91,7 @@ func (c *ConsoleCommand) Run(args []string) int {
 	c.ignoreRemoteVersionConflict(b)
 
 	// Build the operation
-	opReq := c.Operation(b, arguments.ViewHuman, enc)
+	opReq := c.Operation(ctx, b, arguments.ViewHuman, enc)
 	opReq.ConfigDir = configPath
 	opReq.ConfigLoader, err = c.initConfigLoader()
 	opReq.AllowUnsetVariables = true // we'll just evaluate them as unknown
@@ -105,7 +105,7 @@ func (c *ConsoleCommand) Run(args []string) int {
 		// Setup required variables/call for operation (usually done in Meta.RunOperation)
 		var moreDiags, callDiags tfdiags.Diagnostics
 		opReq.Variables, moreDiags = c.collectVariableValues()
-		opReq.RootCall, callDiags = c.rootModuleCall(opReq.ConfigDir)
+		opReq.RootCall, callDiags = c.rootModuleCall(ctx, opReq.ConfigDir)
 		diags = diags.Append(moreDiags).Append(callDiags)
 		if moreDiags.HasErrors() {
 			c.showDiagnostics(diags)
@@ -229,11 +229,11 @@ Options:
                          accompanied by errors, show them in a more compact
                          form that includes only the summary messages.
 
-  -consolidate-warnings  If OpenTofu produces any warnings, no consolodation
+  -consolidate-warnings  If OpenTofu produces any warnings, no consolidation
                          will be performed. All locations, for all warnings
                          will be listed. Enabled by default.
 
-  -consolidate-errors    If OpenTofu produces any errors, no consolodation
+  -consolidate-errors    If OpenTofu produces any errors, no consolidation
                          will be performed. All locations, for all errors
                          will be listed. Disabled by default
 

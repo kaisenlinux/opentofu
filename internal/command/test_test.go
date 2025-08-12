@@ -170,6 +170,10 @@ func TestTest(t *testing.T) {
 			expected: "1 passed, 0 failed.",
 			code:     0,
 		},
+		// New variables introduced in the test file should error out
+		"local_variables_in_provider_block": {
+			code: 1,
+		},
 	}
 	for name, tc := range tcs {
 		t.Run(name, func(t *testing.T) {
@@ -184,7 +188,7 @@ func TestTest(t *testing.T) {
 
 			td := t.TempDir()
 			testCopyDir(t, testFixturePath(path.Join("test", file)), td)
-			defer testChdir(t, td)()
+			t.Chdir(td)
 
 			provider := testing_command.NewProvider(nil)
 			view, done := testView(t)
@@ -273,7 +277,7 @@ func TestTest_Full_Output(t *testing.T) {
 
 			td := t.TempDir()
 			testCopyDir(t, testFixturePath(path.Join("test", file)), td)
-			defer testChdir(t, td)()
+			t.Chdir(td)
 
 			provider := testing_command.NewProvider(nil)
 			view, done := testView(t)
@@ -306,7 +310,7 @@ func TestTest_Full_Output(t *testing.T) {
 func TestTest_Interrupt(t *testing.T) {
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath(path.Join("test", "with_interrupt")), td)
-	defer testChdir(t, td)()
+	t.Chdir(td)
 
 	provider := testing_command.NewProvider(nil)
 	view, done := testView(t)
@@ -338,7 +342,7 @@ func TestTest_Interrupt(t *testing.T) {
 func TestTest_DoubleInterrupt(t *testing.T) {
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath(path.Join("test", "with_double_interrupt")), td)
-	defer testChdir(t, td)()
+	t.Chdir(td)
 
 	provider := testing_command.NewProvider(nil)
 	view, done := testView(t)
@@ -387,7 +391,7 @@ test:
 func TestTest_ProviderAlias(t *testing.T) {
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath(path.Join("test", "with_provider_alias")), td)
-	defer testChdir(t, td)()
+	t.Chdir(td)
 
 	provider := testing_command.NewProvider(nil)
 
@@ -442,7 +446,7 @@ func TestTest_ProviderAlias(t *testing.T) {
 func TestTest_ModuleDependencies(t *testing.T) {
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath(path.Join("test", "with_setup_module")), td)
-	defer testChdir(t, td)()
+	t.Chdir(td)
 
 	// Our two providers will share a common set of values to make things
 	// easier.
@@ -527,7 +531,7 @@ func TestTest_ModuleDependencies(t *testing.T) {
 func TestTest_CatchesErrorsBeforeDestroy(t *testing.T) {
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath(path.Join("test", "invalid_default_state")), td)
-	defer testChdir(t, td)()
+	t.Chdir(td)
 
 	provider := testing_command.NewProvider(nil)
 	view, done := testView(t)
@@ -582,7 +586,7 @@ variable.
 func TestTest_Verbose(t *testing.T) {
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath(path.Join("test", "plan_then_apply")), td)
-	defer testChdir(t, td)()
+	t.Chdir(td)
 
 	provider := testing_command.NewProvider(nil)
 	view, done := testView(t)
@@ -736,7 +740,7 @@ can remove the provider configuration again.
 
 			td := t.TempDir()
 			testCopyDir(t, testFixturePath(path.Join("test", file)), td)
-			defer testChdir(t, td)()
+			t.Chdir(td)
 
 			provider := testing_command.NewProvider(nil)
 
@@ -796,9 +800,10 @@ can remove the provider configuration again.
 
 func TestTest_Modules(t *testing.T) {
 	tcs := map[string]struct {
-		expected string
-		code     int
-		skip     bool
+		expected                      string
+		code                          int
+		skip                          bool
+		expectedProviderConfigRequest *providers.ConfigureProviderRequest
 	}{
 		"pass_module_with_no_resource": {
 			expected: "main.tftest.hcl... pass\n  run \"run\"... pass\n\nSuccess! 1 passed, 0 failed.\n",
@@ -824,6 +829,54 @@ func TestTest_Modules(t *testing.T) {
 			expected: "main.tftest.hcl... pass\n  run \"first_apply\"... pass\n  run \"second_apply\"... pass\n\nSuccess! 2 passed, 0 failed.\n",
 			code:     0,
 		},
+		"run_mod_output_in_provider": {
+			expected: "main.tftest.hcl... pass\n  run \"setup\"... pass\n  run \"validate\"... pass\n\nSuccess! 2 passed, 0 failed.\n",
+			code:     0,
+			expectedProviderConfigRequest: &providers.ConfigureProviderRequest{
+				Config: cty.ObjectVal(map[string]cty.Value{
+					"password":        cty.StringVal("p"),
+					"username":        cty.StringVal("test_user"),
+					"data_prefix":     cty.StringVal("test"),
+					"resource_prefix": cty.StringVal("test"),
+					"block_single": cty.NullVal(cty.Object(map[string]cty.Type{
+						"string_attr": cty.String,
+					})),
+				}),
+			},
+		},
+		"run_mod_output_in_provider_complex": {
+			expected: "main.tftest.hcl... pass\n  run \"setup\"... pass\n  run \"validate\"... pass\n\nSuccess! 2 passed, 0 failed.\n",
+			code:     0,
+			expectedProviderConfigRequest: &providers.ConfigureProviderRequest{
+				Config: cty.ObjectVal(map[string]cty.Value{
+					"password":        cty.StringVal("Password"),
+					"username":        cty.StringVal("test_user@d"),
+					"data_prefix":     cty.StringVal("test"),
+					"resource_prefix": cty.StringVal("test"),
+					"block_single": cty.NullVal(cty.Object(map[string]cty.Type{
+						"string_attr": cty.String,
+					})),
+				}),
+			},
+		},
+		"run_mod_output_in_provider_with_blocks": {
+			expected: "main.tftest.hcl... pass\n  run \"setup\"... pass\n  run \"validate\"... pass\n\nSuccess! 2 passed, 0 failed.\n",
+			code:     0,
+			expectedProviderConfigRequest: &providers.ConfigureProviderRequest{
+				Config: cty.ObjectVal(map[string]cty.Value{
+					"password":        cty.StringVal("p"),
+					"username":        cty.StringVal("test_user"),
+					"data_prefix":     cty.StringVal("test"),
+					"resource_prefix": cty.StringVal("test"),
+					"block_single": cty.ObjectVal(map[string]cty.Value{
+						"string_attr": cty.StringVal("r"),
+					}),
+				}),
+			},
+		},
+		"run_mod_output_in_provider_undefined_ref": {
+			code: 1,
+		},
 	}
 
 	for name, tc := range tcs {
@@ -836,7 +889,7 @@ func TestTest_Modules(t *testing.T) {
 
 			td := t.TempDir()
 			testCopyDir(t, testFixturePath(path.Join("test", file)), td)
-			defer testChdir(t, td)()
+			t.Chdir(td)
 
 			provider := testing_command.NewProvider(nil)
 			providerSource, close := newMockProviderSource(t, map[string][]string{
@@ -876,10 +929,18 @@ func TestTest_Modules(t *testing.T) {
 				t.Errorf("expected status code %d but got %d: %s", tc.code, code, output.All())
 			}
 
-			actual := output.All()
+			// If we're not expecting a failure, we can compare the output.
+			if code != 1 {
+				actual := output.All()
+				if diff := cmp.Diff(actual, tc.expected); len(diff) > 0 {
+					t.Errorf("output didn't match expected:\nexpected:\n%s\nactual:\n%s\ndiff:\n%s", tc.expected, actual, diff)
+				}
+			}
 
-			if diff := cmp.Diff(actual, tc.expected); len(diff) > 0 {
-				t.Errorf("output didn't match expected:\nexpected:\n%s\nactual:\n%s\ndiff:\n%s", tc.expected, actual, diff)
+			if tc.expectedProviderConfigRequest != nil {
+				if !provider.Provider.ConfigureProviderRequest.Config.Equals(tc.expectedProviderConfigRequest.Config).True() {
+					t.Errorf("expected provider config request to equal %+v but got %+v", tc.expectedProviderConfigRequest.Config, provider.Provider.ConfigureProviderRequest.Config)
+				}
 			}
 
 			if provider.ResourceCount() > 0 {
@@ -904,7 +965,7 @@ func TestTest_Modules(t *testing.T) {
 func TestTest_StatePropagation(t *testing.T) {
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath(path.Join("test", "state_propagation")), td)
-	defer testChdir(t, td)()
+	t.Chdir(td)
 
 	provider := testing_command.NewProvider(nil)
 
@@ -1100,7 +1161,7 @@ Condition expression could not be evaluated at this time.
 		t.Run(file, func(t *testing.T) {
 			td := t.TempDir()
 			testCopyDir(t, testFixturePath(path.Join("test", file)), td)
-			defer testChdir(t, td)()
+			t.Chdir(td)
 
 			provider := testing_command.NewProvider(nil)
 			view, done := testView(t)
@@ -1201,7 +1262,7 @@ Success! 1 passed, 0 failed.
 
 			td := t.TempDir()
 			testCopyDir(t, testFixturePath(path.Join("test", file)), td)
-			defer testChdir(t, td)()
+			t.Chdir(td)
 
 			provider := testing_command.NewProvider(nil)
 			providerSource, providerClose := newMockProviderSource(t, map[string][]string{
@@ -1287,7 +1348,7 @@ func TestTest_InvalidLocalVariables(t *testing.T) {
 
 			td := t.TempDir()
 			testCopyDir(t, testFixturePath(path.Join("test", file)), td)
-			defer testChdir(t, td)()
+			t.Chdir(td)
 
 			provider := testing_command.NewProvider(nil)
 			providerSource, providerClose := newMockProviderSource(t, map[string][]string{
@@ -1372,7 +1433,7 @@ digits, underscores, and dashes.
 
 			td := t.TempDir()
 			testCopyDir(t, testFixturePath(path.Join("test", file)), td)
-			defer testChdir(t, td)()
+			t.Chdir(td)
 
 			provider := testing_command.NewProvider(nil)
 			providerSource, close := newMockProviderSource(t, map[string][]string{
@@ -1408,7 +1469,7 @@ digits, underscores, and dashes.
 func TestTest_MockProviderValidation(t *testing.T) {
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("test/mock_provider_validation"), td)
-	defer testChdir(t, td)()
+	t.Chdir(td)
 
 	provider := testing_command.NewProvider(nil)
 	providerSource, closePS := newMockProviderSource(t, map[string][]string{
@@ -1435,6 +1496,18 @@ func TestTest_MockProviderValidation(t *testing.T) {
 							Type:     cty.String,
 							Optional: true,
 						},
+						"object_attr": {
+							Computed: true,
+							NestedType: &configschema.Object{
+								Nesting: configschema.NestingSingle,
+								Attributes: map[string]*configschema.Attribute{
+									"string_attr": {
+										Type:     cty.String,
+										Computed: true,
+									},
+								},
+							},
+						},
 						"computed_value": {
 							Type:     cty.String,
 							Computed: true,
@@ -1445,14 +1518,12 @@ func TestTest_MockProviderValidation(t *testing.T) {
 		},
 	}
 
-	streams, _ := terminal.StreamsForTesting(t)
-	view := views.NewView(streams)
+	view, done := testView(t)
 	ui := new(cli.MockUi)
 	meta := Meta{
 		testingOverrides: metaOverridesForProvider(provider.Provider),
 		Ui:               ui,
 		View:             view,
-		Streams:          streams,
 		ProviderSource:   providerSource,
 	}
 
@@ -1460,7 +1531,9 @@ func TestTest_MockProviderValidation(t *testing.T) {
 		Meta: meta,
 	}
 
-	if code := testCmd.Run(nil); code != 0 {
-		t.Fatalf("expected status code 0 but got %d: %s", code, ui.ErrorWriter)
+	code := testCmd.Run(nil)
+	output := done(t)
+	if code != 0 {
+		t.Fatalf("expected status code 0 but got %d: %s", code, output.All())
 	}
 }

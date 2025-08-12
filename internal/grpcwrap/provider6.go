@@ -31,10 +31,6 @@ type provider6 struct {
 	schema   providers.GetProviderSchemaResponse
 }
 
-func (p *provider6) GetMetadata(context.Context, *tfplugin6.GetMetadata_Request) (*tfplugin6.GetMetadata_Response, error) {
-	panic("Not Implemented")
-}
-
 func (p *provider6) GetProviderSchema(_ context.Context, req *tfplugin6.GetProviderSchema_Request) (*tfplugin6.GetProviderSchema_Response, error) {
 	resp := &tfplugin6.GetProviderSchema_Response{
 		ResourceSchemas:   make(map[string]*tfplugin6.Schema),
@@ -396,6 +392,26 @@ func (p *provider6) ReadDataSource(_ context.Context, req *tfplugin6.ReadDataSou
 	return resp, nil
 }
 
+// CloseEphemeralResource implements tfplugin6.ProviderServer.
+func (p *provider6) CloseEphemeralResource(context.Context, *tfplugin6.CloseEphemeralResource_Request) (*tfplugin6.CloseEphemeralResource_Response, error) {
+	panic("unimplemented")
+}
+
+// OpenEphemeralResource implements tfplugin6.ProviderServer.
+func (p *provider6) OpenEphemeralResource(context.Context, *tfplugin6.OpenEphemeralResource_Request) (*tfplugin6.OpenEphemeralResource_Response, error) {
+	panic("unimplemented")
+}
+
+// RenewEphemeralResource implements tfplugin6.ProviderServer.
+func (p *provider6) RenewEphemeralResource(context.Context, *tfplugin6.RenewEphemeralResource_Request) (*tfplugin6.RenewEphemeralResource_Response, error) {
+	panic("unimplemented")
+}
+
+// ValidateEphemeralResourceConfig implements tfplugin6.ProviderServer.
+func (p *provider6) ValidateEphemeralResourceConfig(context.Context, *tfplugin6.ValidateEphemeralResourceConfig_Request) (*tfplugin6.ValidateEphemeralResourceConfig_Response, error) {
+	panic("unimplemented")
+}
+
 func (p *provider6) StopProvider(context.Context, *tfplugin6.StopProvider_Request) (*tfplugin6.StopProvider_Response, error) {
 	resp := &tfplugin6.StopProvider_Response{}
 	err := p.provider.Stop()
@@ -410,6 +426,20 @@ func (p *provider6) GetFunctions(context.Context, *tfplugin6.GetFunctions_Reques
 }
 
 func (p *provider6) CallFunction(context.Context, *tfplugin6.CallFunction_Request) (*tfplugin6.CallFunction_Response, error) {
+	panic("Not Implemented")
+}
+
+// GetResourceIdentitySchemas implements tfplugin6.ProviderServer.
+func (p *provider6) GetResourceIdentitySchemas(context.Context, *tfplugin6.GetResourceIdentitySchemas_Request) (*tfplugin6.GetResourceIdentitySchemas_Response, error) {
+	panic("unimplemented")
+}
+
+// UpgradeResourceIdentity implements tfplugin6.ProviderServer.
+func (p *provider6) UpgradeResourceIdentity(context.Context, *tfplugin6.UpgradeResourceIdentity_Request) (*tfplugin6.UpgradeResourceIdentity_Response, error) {
+	panic("unimplemented")
+}
+
+func (p *provider6) GetMetadata(context.Context, *tfplugin6.GetMetadata_Request) (*tfplugin6.GetMetadata_Response, error) {
 	panic("Not Implemented")
 }
 

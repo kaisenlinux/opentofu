@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-plugin"
+	"github.com/hashicorp/go-retryablehttp"
 	"github.com/hashicorp/terraform-svchost/disco"
 	"github.com/mitchellh/cli"
 	"github.com/mitchellh/colorstring"
@@ -34,6 +35,7 @@ import (
 	"github.com/opentofu/opentofu/internal/command/workdir"
 	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/configs/configload"
+	"github.com/opentofu/opentofu/internal/getmodules"
 	"github.com/opentofu/opentofu/internal/getproviders"
 	legacy "github.com/opentofu/opentofu/internal/legacy/tofu"
 	"github.com/opentofu/opentofu/internal/providers"
@@ -128,6 +130,24 @@ type Meta struct {
 	// and determines where a distribution package for a particular
 	// provider version can be obtained.
 	ProviderSource getproviders.Source
+
+	// ModulePackageFetcher is the client to use when fetching module packages
+	// from remote locations. This object effectively represents the policy
+	// for how to fetch remote module packages, which is decided by the caller.
+	//
+	// Leaving this nil means that only local modules (using relative paths
+	// in the source address) are supported, which is only reasonable for
+	// unit testing.
+	ModulePackageFetcher *getmodules.PackageFetcher
+
+	// MakeRegistryHTTPClient is a function called each time a command needs
+	// an HTTP client that will be used to make requests to a module or
+	// provider registry.
+	//
+	// This is used by package main to deal with some operator-configurable
+	// settings for retries and timeouts. If this isn't set then a new client
+	// with reasonable defaults for tests will be used instead.
+	MakeRegistryHTTPClient func() *retryablehttp.Client
 
 	// BrowserLauncher is used by commands that need to open a URL in a
 	// web browser.
@@ -257,10 +277,10 @@ type Meta struct {
 	// compactWarnings (-compact-warnings) selects a more compact presentation
 	// of warnings in the output when they are not accompanied by errors.
 	//
-	// consolidateWarnings (-consolidate-warnings=false) disables consolodation
+	// consolidateWarnings (-consolidate-warnings=false) disables consolidation
 	// of warnings in the output, printing all instances of a particular warning.
 	//
-	// consolidateErrors (-consolidate-errors=true) enables consolodation
+	// consolidateErrors (-consolidate-errors=true) enables consolidation
 	// of errors in the output, printing a single instances of a particular warning.
 	statePath           string
 	stateOutPath        string
@@ -499,7 +519,7 @@ func (m *Meta) RunOperation(ctx context.Context, b backend.Enhanced, opReq *back
 	// Inject variables and root module call
 	var diags, callDiags tfdiags.Diagnostics
 	opReq.Variables, diags = m.collectVariableValues()
-	opReq.RootCall, callDiags = m.rootModuleCall(opReq.ConfigDir)
+	opReq.RootCall, callDiags = m.rootModuleCall(ctx, opReq.ConfigDir)
 	diags = diags.Append(callDiags)
 	if diags.HasErrors() {
 		return nil, diags
@@ -548,8 +568,8 @@ func (m *Meta) RunOperation(ctx context.Context, b backend.Enhanced, opReq *back
 
 // contextOpts returns the options to use to initialize a OpenTofu
 // context with the settings from this Meta.
-func (m *Meta) contextOpts() (*tofu.ContextOpts, error) {
-	workspace, err := m.Workspace()
+func (m *Meta) contextOpts(ctx context.Context) (*tofu.ContextOpts, error) {
+	workspace, err := m.Workspace(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -801,8 +821,8 @@ var errInvalidWorkspaceNameEnvVar = fmt.Errorf("Invalid workspace name set using
 
 // Workspace returns the name of the currently configured workspace, corresponding
 // to the desired named state.
-func (m *Meta) Workspace() (string, error) {
-	current, overridden := m.WorkspaceOverridden()
+func (m *Meta) Workspace(ctx context.Context) (string, error) {
+	current, overridden := m.WorkspaceOverridden(ctx)
 	if overridden && !validWorkspaceName(current) {
 		return "", errInvalidWorkspaceNameEnvVar
 	}
@@ -812,7 +832,7 @@ func (m *Meta) Workspace() (string, error) {
 // WorkspaceOverridden returns the name of the currently configured workspace,
 // corresponding to the desired named state, as well as a bool saying whether
 // this was set via the TF_WORKSPACE environment variable.
-func (m *Meta) WorkspaceOverridden() (string, bool) {
+func (m *Meta) WorkspaceOverridden(_ context.Context) (string, bool) {
 	if envVar := os.Getenv(WorkspaceNameEnvVar); envVar != "" {
 		return envVar, true
 	}
@@ -865,7 +885,7 @@ func (m *Meta) applyStateArguments(args *arguments.State) {
 
 // checkRequiredVersion loads the config and check if the
 // core version requirements are satisfied.
-func (m *Meta) checkRequiredVersion() tfdiags.Diagnostics {
+func (m *Meta) checkRequiredVersion(ctx context.Context) tfdiags.Diagnostics {
 	var diags tfdiags.Diagnostics
 
 	loader, err := m.initConfigLoader()
@@ -880,13 +900,13 @@ func (m *Meta) checkRequiredVersion() tfdiags.Diagnostics {
 		return diags
 	}
 
-	call, callDiags := m.rootModuleCall(pwd)
+	call, callDiags := m.rootModuleCall(ctx, pwd)
 	if callDiags.HasErrors() {
 		diags = diags.Append(callDiags)
 		return diags
 	}
 
-	config, configDiags := loader.LoadConfig(pwd, call)
+	config, configDiags := loader.LoadConfig(ctx, pwd, call)
 	if configDiags.HasErrors() {
 		diags = diags.Append(configDiags)
 		return diags
@@ -906,7 +926,7 @@ func (m *Meta) checkRequiredVersion() tfdiags.Diagnostics {
 // it could potentially return nil without errors. It is the
 // responsibility of the caller to handle the lack of schema
 // information accordingly
-func (c *Meta) MaybeGetSchemas(state *states.State, config *configs.Config) (*tofu.Schemas, tfdiags.Diagnostics) {
+func (c *Meta) MaybeGetSchemas(ctx context.Context, state *states.State, config *configs.Config) (*tofu.Schemas, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
 	path, err := os.Getwd()
@@ -916,7 +936,7 @@ func (c *Meta) MaybeGetSchemas(state *states.State, config *configs.Config) (*to
 	}
 
 	if config == nil {
-		config, diags = c.loadConfig(path)
+		config, diags = c.loadConfig(ctx, path)
 		if diags.HasErrors() {
 			diags.Append(tfdiags.SimpleWarning(failedToLoadSchemasMessage))
 			return nil, diags
@@ -924,7 +944,7 @@ func (c *Meta) MaybeGetSchemas(state *states.State, config *configs.Config) (*to
 	}
 
 	if config != nil || state != nil {
-		opts, err := c.contextOpts()
+		opts, err := c.contextOpts(ctx)
 		if err != nil {
 			diags = diags.Append(err)
 			return nil, diags
@@ -935,7 +955,7 @@ func (c *Meta) MaybeGetSchemas(state *states.State, config *configs.Config) (*to
 			return nil, diags
 		}
 		var schemaDiags tfdiags.Diagnostics
-		schemas, schemaDiags := tfCtx.Schemas(config, state)
+		schemas, schemaDiags := tfCtx.Schemas(ctx, config, state)
 		diags = diags.Append(schemaDiags)
 		if schemaDiags.HasErrors() {
 			return nil, diags

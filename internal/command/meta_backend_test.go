@@ -39,22 +39,23 @@ import (
 func TestMetaBackend_emptyDir(t *testing.T) {
 	// Create a temporary working directory that is empty
 	td := t.TempDir()
-	os.MkdirAll(td, 0755)
-	defer testChdir(t, td)()
+	t.Chdir(td)
 
 	// Get the backend
 	m := testMetaBackend(t, nil)
-	b, diags := m.Backend(&BackendOpts{Init: true}, encryption.StateEncryptionDisabled())
+	b, diags := m.Backend(t.Context(), &BackendOpts{Init: true}, encryption.StateEncryptionDisabled())
 	if diags.HasErrors() {
 		t.Fatal(diags.Err())
 	}
 
 	// Write some state
-	s, err := b.StateMgr(backend.DefaultStateName)
+	s, err := b.StateMgr(t.Context(), backend.DefaultStateName)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
-	s.WriteState(testState())
+	if err := s.WriteState(testState()); err != nil {
+		t.Fatal(err)
+	}
 	if err := s.PersistState(nil); err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -94,8 +95,7 @@ func isEmptyState(path string) bool {
 func TestMetaBackend_emptyWithDefaultState(t *testing.T) {
 	// Create a temporary working directory that is empty
 	td := t.TempDir()
-	os.MkdirAll(td, 0755)
-	defer testChdir(t, td)()
+	t.Chdir(td)
 
 	// Write the legacy state
 	statePath := DefaultStateFilename
@@ -113,13 +113,13 @@ func TestMetaBackend_emptyWithDefaultState(t *testing.T) {
 
 	// Get the backend
 	m := testMetaBackend(t, nil)
-	b, diags := m.Backend(&BackendOpts{Init: true}, encryption.StateEncryptionDisabled())
+	b, diags := m.Backend(t.Context(), &BackendOpts{Init: true}, encryption.StateEncryptionDisabled())
 	if diags.HasErrors() {
 		t.Fatal(diags.Err())
 	}
 
 	// Check the state
-	s, err := b.StateMgr(backend.DefaultStateName)
+	s, err := b.StateMgr(t.Context(), backend.DefaultStateName)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -142,8 +142,10 @@ func TestMetaBackend_emptyWithDefaultState(t *testing.T) {
 
 	// Write some state
 	next := testState()
-	next.RootModule().SetOutputValue("foo", cty.StringVal("bar"), false)
-	s.WriteState(next)
+	next.RootModule().SetOutputValue("foo", cty.StringVal("bar"), false, "")
+	if err := s.WriteState(next); err != nil {
+		t.Fatal(err)
+	}
 	if err := s.PersistState(nil); err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -158,12 +160,10 @@ func TestMetaBackend_emptyWithDefaultState(t *testing.T) {
 func TestMetaBackend_emptyWithExplicitState(t *testing.T) {
 	// Create a temporary working directory that is empty
 	td := t.TempDir()
-	os.MkdirAll(td, 0755)
-	defer testChdir(t, td)()
+	t.Chdir(td)
 
 	// Create another directory to store our state
 	stateDir := t.TempDir()
-	os.MkdirAll(stateDir, 0755)
 
 	// Write the legacy state
 	statePath := filepath.Join(stateDir, "foo")
@@ -184,13 +184,13 @@ func TestMetaBackend_emptyWithExplicitState(t *testing.T) {
 	m.statePath = statePath
 
 	// Get the backend
-	b, diags := m.Backend(&BackendOpts{Init: true}, encryption.StateEncryptionDisabled())
+	b, diags := m.Backend(t.Context(), &BackendOpts{Init: true}, encryption.StateEncryptionDisabled())
 	if diags.HasErrors() {
 		t.Fatal(diags.Err())
 	}
 
 	// Check the state
-	s, err := b.StateMgr(backend.DefaultStateName)
+	s, err := b.StateMgr(t.Context(), backend.DefaultStateName)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -214,7 +214,9 @@ func TestMetaBackend_emptyWithExplicitState(t *testing.T) {
 	// Write some state
 	next := testState()
 	markStateForMatching(next, "bar") // just any change so it shows as different than before
-	s.WriteState(next)
+	if err := s.WriteState(next); err != nil {
+		t.Fatal(err)
+	}
 	if err := s.PersistState(nil); err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -230,13 +232,13 @@ func TestMetaBackend_configureInterpolation(t *testing.T) {
 	// Create a temporary working directory that is empty
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("backend-new-interp"), td)
-	defer testChdir(t, td)()
+	t.Chdir(td)
 
 	// Setup the meta
 	m := testMetaBackend(t, nil)
 
 	// Get the backend
-	_, err := m.Backend(&BackendOpts{Init: true}, encryption.StateEncryptionDisabled())
+	_, err := m.Backend(t.Context(), &BackendOpts{Init: true}, encryption.StateEncryptionDisabled())
 	if err != nil {
 		t.Fatal("should not error")
 	}
@@ -246,19 +248,19 @@ func TestMetaBackend_configureInterpolation(t *testing.T) {
 func TestMetaBackend_configureNew(t *testing.T) {
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("backend-new"), td)
-	defer testChdir(t, td)()
+	t.Chdir(td)
 
 	// Setup the meta
 	m := testMetaBackend(t, nil)
 
 	// Get the backend
-	b, diags := m.Backend(&BackendOpts{Init: true}, encryption.StateEncryptionDisabled())
+	b, diags := m.Backend(t.Context(), &BackendOpts{Init: true}, encryption.StateEncryptionDisabled())
 	if diags.HasErrors() {
 		t.Fatal(diags.Err())
 	}
 
 	// Check the state
-	s, err := b.StateMgr(backend.DefaultStateName)
+	s, err := b.StateMgr(t.Context(), backend.DefaultStateName)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -274,7 +276,9 @@ func TestMetaBackend_configureNew(t *testing.T) {
 	state = states.NewState()
 	mark := markStateForMatching(state, "changing")
 
-	s.WriteState(state)
+	if err := s.WriteState(state); err != nil {
+		t.Fatal(err)
+	}
 	if err := s.PersistState(nil); err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -310,7 +314,7 @@ func TestMetaBackend_configureNewWithState(t *testing.T) {
 	// Create a temporary working directory that is empty
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("backend-new-migrate"), td)
-	defer testChdir(t, td)()
+	t.Chdir(td)
 
 	// Ask input
 	defer testInteractiveInput(t, []string{"yes"})()
@@ -323,13 +327,13 @@ func TestMetaBackend_configureNewWithState(t *testing.T) {
 	m.migrateState = false
 
 	// Get the backend
-	b, diags := m.Backend(&BackendOpts{Init: true}, encryption.StateEncryptionDisabled())
+	b, diags := m.Backend(t.Context(), &BackendOpts{Init: true}, encryption.StateEncryptionDisabled())
 	if diags.HasErrors() {
 		t.Fatal(diags.Err())
 	}
 
 	// Check the state
-	s, err := b.StateMgr(backend.DefaultStateName)
+	s, err := b.StateMgr(t.Context(), backend.DefaultStateName)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -387,7 +391,7 @@ func TestMetaBackend_configureNewWithoutCopy(t *testing.T) {
 	// Create a temporary working directory that is empty
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("backend-new-migrate"), td)
-	defer testChdir(t, td)()
+	t.Chdir(td)
 
 	if err := copy.CopyFile(DefaultStateFilename, "local-state.tfstate"); err != nil {
 		t.Fatal(err)
@@ -398,7 +402,7 @@ func TestMetaBackend_configureNewWithoutCopy(t *testing.T) {
 	m.input = false
 
 	// init the backend
-	_, diags := m.Backend(&BackendOpts{Init: true}, encryption.StateEncryptionDisabled())
+	_, diags := m.Backend(t.Context(), &BackendOpts{Init: true}, encryption.StateEncryptionDisabled())
 	if diags.HasErrors() {
 		t.Fatal(diags.Err())
 	}
@@ -437,7 +441,7 @@ func TestMetaBackend_configureNewWithStateNoMigrate(t *testing.T) {
 	// Create a temporary working directory that is empty
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("backend-new-migrate"), td)
-	defer testChdir(t, td)()
+	t.Chdir(td)
 
 	// Ask input
 	defer testInteractiveInput(t, []string{"no"})()
@@ -446,13 +450,13 @@ func TestMetaBackend_configureNewWithStateNoMigrate(t *testing.T) {
 	m := testMetaBackend(t, nil)
 
 	// Get the backend
-	b, diags := m.Backend(&BackendOpts{Init: true}, encryption.StateEncryptionDisabled())
+	b, diags := m.Backend(t.Context(), &BackendOpts{Init: true}, encryption.StateEncryptionDisabled())
 	if diags.HasErrors() {
 		t.Fatal(diags.Err())
 	}
 
 	// Check the state
-	s, err := b.StateMgr(backend.DefaultStateName)
+	s, err := b.StateMgr(t.Context(), backend.DefaultStateName)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -481,7 +485,7 @@ func TestMetaBackend_configureNewWithStateExisting(t *testing.T) {
 	// Create a temporary working directory that is empty
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("backend-new-migrate-existing"), td)
-	defer testChdir(t, td)()
+	t.Chdir(td)
 
 	// Setup the meta
 	m := testMetaBackend(t, nil)
@@ -489,13 +493,13 @@ func TestMetaBackend_configureNewWithStateExisting(t *testing.T) {
 	m.forceInitCopy = true
 
 	// Get the backend
-	b, diags := m.Backend(&BackendOpts{Init: true}, encryption.StateEncryptionDisabled())
+	b, diags := m.Backend(t.Context(), &BackendOpts{Init: true}, encryption.StateEncryptionDisabled())
 	if diags.HasErrors() {
 		t.Fatal(diags.Err())
 	}
 
 	// Check the state
-	s, err := b.StateMgr(backend.DefaultStateName)
+	s, err := b.StateMgr(t.Context(), backend.DefaultStateName)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -514,7 +518,9 @@ func TestMetaBackend_configureNewWithStateExisting(t *testing.T) {
 	state = states.NewState()
 	mark := markStateForMatching(state, "changing")
 
-	s.WriteState(state)
+	if err := s.WriteState(state); err != nil {
+		t.Fatal(err)
+	}
 	if err := s.PersistState(nil); err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -552,7 +558,7 @@ func TestMetaBackend_configureNewWithStateExistingNoMigrate(t *testing.T) {
 	// Create a temporary working directory that is empty
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("backend-new-migrate-existing"), td)
-	defer testChdir(t, td)()
+	t.Chdir(td)
 
 	// Ask input
 	defer testInteractiveInput(t, []string{"no"})()
@@ -561,13 +567,13 @@ func TestMetaBackend_configureNewWithStateExistingNoMigrate(t *testing.T) {
 	m := testMetaBackend(t, nil)
 
 	// Get the backend
-	b, diags := m.Backend(&BackendOpts{Init: true}, encryption.StateEncryptionDisabled())
+	b, diags := m.Backend(t.Context(), &BackendOpts{Init: true}, encryption.StateEncryptionDisabled())
 	if diags.HasErrors() {
 		t.Fatal(diags.Err())
 	}
 
 	// Check the state
-	s, err := b.StateMgr(backend.DefaultStateName)
+	s, err := b.StateMgr(t.Context(), backend.DefaultStateName)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -585,7 +591,9 @@ func TestMetaBackend_configureNewWithStateExistingNoMigrate(t *testing.T) {
 	// Write some state
 	state = states.NewState()
 	mark := markStateForMatching(state, "changing")
-	s.WriteState(state)
+	if err := s.WriteState(state); err != nil {
+		t.Fatal(err)
+	}
 	if err := s.PersistState(nil); err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -620,19 +628,19 @@ func TestMetaBackend_configureNewWithStateExistingNoMigrate(t *testing.T) {
 
 // Saved backend state matching config
 func TestMetaBackend_configuredUnchanged(t *testing.T) {
-	defer testChdir(t, testFixturePath("backend-unchanged"))()
+	t.Chdir(testFixturePath("backend-unchanged"))
 
 	// Setup the meta
 	m := testMetaBackend(t, nil)
 
 	// Get the backend
-	b, diags := m.Backend(&BackendOpts{Init: true}, encryption.StateEncryptionDisabled())
+	b, diags := m.Backend(t.Context(), &BackendOpts{Init: true}, encryption.StateEncryptionDisabled())
 	if diags.HasErrors() {
 		t.Fatal(diags.Err())
 	}
 
 	// Check the state
-	s, err := b.StateMgr(backend.DefaultStateName)
+	s, err := b.StateMgr(t.Context(), backend.DefaultStateName)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -681,7 +689,7 @@ func TestMetaBackend_configuredUnchangedWithStaticEvalVars(t *testing.T) {
 	// have migration skipped, even if the rules for activating that fast path
 	// change in future.
 
-	defer testChdir(t, testFixturePath("backend-unchanged-vars"))()
+	t.Chdir(testFixturePath("backend-unchanged-vars"))
 
 	// We'll use a mock backend here because we need to control the schema to
 	// make sure that we always have a required field for the ConfigOverride
@@ -740,6 +748,7 @@ func TestMetaBackend_configuredUnchangedWithStaticEvalVars(t *testing.T) {
 
 	// Get the backend
 	b, diags := m.Backend(
+		t.Context(),
 		&BackendOpts{
 			Init: true,
 
@@ -763,9 +772,7 @@ func TestMetaBackend_configuredUnchangedWithStaticEvalVars(t *testing.T) {
 					},
 				},
 			}),
-		},
-		encryption.StateEncryptionDisabled(),
-	)
+		}, encryption.StateEncryptionDisabled())
 	if diags.HasErrors() {
 		// The original problem reported in https://github.com/opentofu/opentofu/issues/2024
 		// would return an error here: "Backend configuration has changed".
@@ -777,7 +784,7 @@ func TestMetaBackend_configuredUnchangedWithStaticEvalVars(t *testing.T) {
 	// also follows the usual invariants for a failed backend init.
 
 	// Check the state
-	s, err := b.StateMgr(backend.DefaultStateName)
+	s, err := b.StateMgr(t.Context(), backend.DefaultStateName)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -808,7 +815,7 @@ func TestMetaBackend_configuredChange(t *testing.T) {
 	// Create a temporary working directory that is empty
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("backend-change"), td)
-	defer testChdir(t, td)()
+	t.Chdir(td)
 
 	// Ask input
 	defer testInteractiveInput(t, []string{"no"})()
@@ -817,13 +824,13 @@ func TestMetaBackend_configuredChange(t *testing.T) {
 	m := testMetaBackend(t, nil)
 
 	// Get the backend
-	b, diags := m.Backend(&BackendOpts{Init: true}, encryption.StateEncryptionDisabled())
+	b, diags := m.Backend(t.Context(), &BackendOpts{Init: true}, encryption.StateEncryptionDisabled())
 	if diags.HasErrors() {
 		t.Fatal(diags.Err())
 	}
 
 	// Check the state
-	s, err := b.StateMgr(backend.DefaultStateName)
+	s, err := b.StateMgr(t.Context(), backend.DefaultStateName)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -849,7 +856,9 @@ func TestMetaBackend_configuredChange(t *testing.T) {
 	state = states.NewState()
 	mark := markStateForMatching(state, "changing")
 
-	s.WriteState(state)
+	if err := s.WriteState(state); err != nil {
+		t.Fatal(err)
+	}
 	if err := s.PersistState(nil); err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -887,7 +896,7 @@ func TestMetaBackend_reconfigureChange(t *testing.T) {
 	// Create a temporary working directory that is empty
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("backend-change-single-to-single"), td)
-	defer testChdir(t, td)()
+	t.Chdir(td)
 
 	// Register the single-state backend
 	backendInit.Set("local-single", backendLocal.TestNewLocalSingle)
@@ -903,13 +912,13 @@ func TestMetaBackend_reconfigureChange(t *testing.T) {
 	m.reconfigure = true
 
 	// Get the backend
-	b, diags := m.Backend(&BackendOpts{Init: true}, encryption.StateEncryptionDisabled())
+	b, diags := m.Backend(t.Context(), &BackendOpts{Init: true}, encryption.StateEncryptionDisabled())
 	if diags.HasErrors() {
 		t.Fatal(diags.Err())
 	}
 
 	// Check the state
-	s, err := b.StateMgr(backend.DefaultStateName)
+	s, err := b.StateMgr(t.Context(), backend.DefaultStateName)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -940,7 +949,7 @@ func TestMetaBackend_initSelectedWorkspaceDoesNotExist(t *testing.T) {
 	// Create a temporary working directory that is empty
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("init-backend-selected-workspace-doesnt-exist-multi"), td)
-	defer testChdir(t, td)()
+	t.Chdir(td)
 
 	// Setup the meta
 	m := testMetaBackend(t, nil)
@@ -950,13 +959,13 @@ func TestMetaBackend_initSelectedWorkspaceDoesNotExist(t *testing.T) {
 	})()
 
 	// Get the backend
-	_, diags := m.Backend(&BackendOpts{Init: true}, encryption.StateEncryptionDisabled())
+	_, diags := m.Backend(t.Context(), &BackendOpts{Init: true}, encryption.StateEncryptionDisabled())
 	if diags.HasErrors() {
 		t.Fatal(diags.Err())
 	}
 
 	expected := "foo"
-	actual, err := m.Workspace()
+	actual, err := m.Workspace(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -973,7 +982,7 @@ func TestMetaBackend_initSelectedWorkspaceDoesNotExistAutoSelect(t *testing.T) {
 	// Create a temporary working directory that is empty
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("init-backend-selected-workspace-doesnt-exist-single"), td)
-	defer testChdir(t, td)()
+	t.Chdir(td)
 
 	// Setup the meta
 	m := testMetaBackend(t, nil)
@@ -982,7 +991,7 @@ func TestMetaBackend_initSelectedWorkspaceDoesNotExistAutoSelect(t *testing.T) {
 	m.input = false
 
 	// Assert test precondition: The current selected workspace is "bar"
-	previousName, err := m.Workspace()
+	previousName, err := m.Workspace(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -992,13 +1001,13 @@ func TestMetaBackend_initSelectedWorkspaceDoesNotExistAutoSelect(t *testing.T) {
 	}
 
 	// Get the backend
-	_, diags := m.Backend(&BackendOpts{Init: true}, encryption.StateEncryptionDisabled())
+	_, diags := m.Backend(t.Context(), &BackendOpts{Init: true}, encryption.StateEncryptionDisabled())
 	if diags.HasErrors() {
 		t.Fatal(diags.Err())
 	}
 
 	expected := "default"
-	actual, err := m.Workspace()
+	actual, err := m.Workspace(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1014,14 +1023,14 @@ func TestMetaBackend_initSelectedWorkspaceDoesNotExistInputFalse(t *testing.T) {
 	// Create a temporary working directory that is empty
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("init-backend-selected-workspace-doesnt-exist-multi"), td)
-	defer testChdir(t, td)()
+	t.Chdir(td)
 
 	// Setup the meta
 	m := testMetaBackend(t, nil)
 	m.input = false
 
 	// Get the backend
-	_, diags := m.Backend(&BackendOpts{Init: true}, encryption.StateEncryptionDisabled())
+	_, diags := m.Backend(t.Context(), &BackendOpts{Init: true}, encryption.StateEncryptionDisabled())
 
 	// Should fail immediately
 	if got, want := diags.ErrWithWarnings().Error(), `Currently selected workspace "bar" does not exist`; !strings.Contains(got, want) {
@@ -1034,7 +1043,7 @@ func TestMetaBackend_configuredChangeCopy(t *testing.T) {
 	// Create a temporary working directory that is empty
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("backend-change"), td)
-	defer testChdir(t, td)()
+	t.Chdir(td)
 
 	// Ask input
 	defer testInteractiveInput(t, []string{"yes", "yes"})()
@@ -1043,13 +1052,13 @@ func TestMetaBackend_configuredChangeCopy(t *testing.T) {
 	m := testMetaBackend(t, nil)
 
 	// Get the backend
-	b, diags := m.Backend(&BackendOpts{Init: true}, encryption.StateEncryptionDisabled())
+	b, diags := m.Backend(t.Context(), &BackendOpts{Init: true}, encryption.StateEncryptionDisabled())
 	if diags.HasErrors() {
 		t.Fatal(diags.Err())
 	}
 
 	// Check the state
-	s, err := b.StateMgr(backend.DefaultStateName)
+	s, err := b.StateMgr(t.Context(), backend.DefaultStateName)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -1081,7 +1090,7 @@ func TestMetaBackend_configuredChangeCopy_singleState(t *testing.T) {
 	// Create a temporary working directory that is empty
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("backend-change-single-to-single"), td)
-	defer testChdir(t, td)()
+	t.Chdir(td)
 
 	// Register the single-state backend
 	backendInit.Set("local-single", backendLocal.TestNewLocalSingle)
@@ -1096,13 +1105,13 @@ func TestMetaBackend_configuredChangeCopy_singleState(t *testing.T) {
 	m := testMetaBackend(t, nil)
 
 	// Get the backend
-	b, diags := m.Backend(&BackendOpts{Init: true}, encryption.StateEncryptionDisabled())
+	b, diags := m.Backend(t.Context(), &BackendOpts{Init: true}, encryption.StateEncryptionDisabled())
 	if diags.HasErrors() {
 		t.Fatal(diags.Err())
 	}
 
 	// Check the state
-	s, err := b.StateMgr(backend.DefaultStateName)
+	s, err := b.StateMgr(t.Context(), backend.DefaultStateName)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -1135,7 +1144,7 @@ func TestMetaBackend_configuredChangeCopy_multiToSingleDefault(t *testing.T) {
 	// Create a temporary working directory that is empty
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("backend-change-multi-default-to-single"), td)
-	defer testChdir(t, td)()
+	t.Chdir(td)
 
 	// Register the single-state backend
 	backendInit.Set("local-single", backendLocal.TestNewLocalSingle)
@@ -1150,13 +1159,13 @@ func TestMetaBackend_configuredChangeCopy_multiToSingleDefault(t *testing.T) {
 	m := testMetaBackend(t, nil)
 
 	// Get the backend
-	b, diags := m.Backend(&BackendOpts{Init: true}, encryption.StateEncryptionDisabled())
+	b, diags := m.Backend(t.Context(), &BackendOpts{Init: true}, encryption.StateEncryptionDisabled())
 	if diags.HasErrors() {
 		t.Fatal(diags.Err())
 	}
 
 	// Check the state
-	s, err := b.StateMgr(backend.DefaultStateName)
+	s, err := b.StateMgr(t.Context(), backend.DefaultStateName)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -1188,7 +1197,7 @@ func TestMetaBackend_configuredChangeCopy_multiToSingle(t *testing.T) {
 	// Create a temporary working directory that is empty
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("backend-change-multi-to-single"), td)
-	defer testChdir(t, td)()
+	t.Chdir(td)
 
 	// Register the single-state backend
 	backendInit.Set("local-single", backendLocal.TestNewLocalSingle)
@@ -1204,13 +1213,13 @@ func TestMetaBackend_configuredChangeCopy_multiToSingle(t *testing.T) {
 	m := testMetaBackend(t, nil)
 
 	// Get the backend
-	b, diags := m.Backend(&BackendOpts{Init: true}, encryption.StateEncryptionDisabled())
+	b, diags := m.Backend(t.Context(), &BackendOpts{Init: true}, encryption.StateEncryptionDisabled())
 	if diags.HasErrors() {
 		t.Fatal(diags.Err())
 	}
 
 	// Check the state
-	s, err := b.StateMgr(backend.DefaultStateName)
+	s, err := b.StateMgr(t.Context(), backend.DefaultStateName)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -1242,7 +1251,7 @@ func TestMetaBackend_configuredChangeCopy_multiToSingle(t *testing.T) {
 	}
 
 	// Verify we are now in the default env, or we may not be able to access the new backend
-	env, err := m.Workspace()
+	env, err := m.Workspace(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1257,7 +1266,7 @@ func TestMetaBackend_configuredChangeCopy_multiToSingleCurrentEnv(t *testing.T) 
 	// Create a temporary working directory that is empty
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("backend-change-multi-to-single"), td)
-	defer testChdir(t, td)()
+	t.Chdir(td)
 
 	// Register the single-state backend
 	backendInit.Set("local-single", backendLocal.TestNewLocalSingle)
@@ -1278,13 +1287,13 @@ func TestMetaBackend_configuredChangeCopy_multiToSingleCurrentEnv(t *testing.T) 
 	}
 
 	// Get the backend
-	b, diags := m.Backend(&BackendOpts{Init: true}, encryption.StateEncryptionDisabled())
+	b, diags := m.Backend(t.Context(), &BackendOpts{Init: true}, encryption.StateEncryptionDisabled())
 	if diags.HasErrors() {
 		t.Fatal(diags.Err())
 	}
 
 	// Check the state
-	s, err := b.StateMgr(backend.DefaultStateName)
+	s, err := b.StateMgr(t.Context(), backend.DefaultStateName)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -1322,7 +1331,7 @@ func TestMetaBackend_configuredChangeCopy_multiToMulti(t *testing.T) {
 	// Create a temporary working directory that is empty
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("backend-change-multi-to-multi"), td)
-	defer testChdir(t, td)()
+	t.Chdir(td)
 
 	// Ask input
 	defer testInputMap(t, map[string]string{
@@ -1333,13 +1342,13 @@ func TestMetaBackend_configuredChangeCopy_multiToMulti(t *testing.T) {
 	m := testMetaBackend(t, nil)
 
 	// Get the backend
-	b, diags := m.Backend(&BackendOpts{Init: true}, encryption.StateEncryptionDisabled())
+	b, diags := m.Backend(t.Context(), &BackendOpts{Init: true}, encryption.StateEncryptionDisabled())
 	if diags.HasErrors() {
 		t.Fatal(diags.Err())
 	}
 
 	// Check resulting states
-	workspaces, err := b.Workspaces()
+	workspaces, err := b.Workspaces(t.Context())
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -1352,7 +1361,7 @@ func TestMetaBackend_configuredChangeCopy_multiToMulti(t *testing.T) {
 
 	{
 		// Check the default state
-		s, err := b.StateMgr(backend.DefaultStateName)
+		s, err := b.StateMgr(t.Context(), backend.DefaultStateName)
 		if err != nil {
 			t.Fatalf("unexpected error: %s", err)
 		}
@@ -1370,7 +1379,7 @@ func TestMetaBackend_configuredChangeCopy_multiToMulti(t *testing.T) {
 
 	{
 		// Check the other state
-		s, err := b.StateMgr("env2")
+		s, err := b.StateMgr(t.Context(), "env2")
 		if err != nil {
 			t.Fatalf("unexpected error: %s", err)
 		}
@@ -1415,7 +1424,7 @@ func TestMetaBackend_configuredChangeCopy_multiToNoDefaultWithDefault(t *testing
 	// Create a temporary working directory that is empty
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("backend-change-multi-to-no-default-with-default"), td)
-	defer testChdir(t, td)()
+	t.Chdir(td)
 
 	// Register the single-state backend
 	backendInit.Set("local-no-default", backendLocal.TestNewLocalNoDefault)
@@ -1431,13 +1440,13 @@ func TestMetaBackend_configuredChangeCopy_multiToNoDefaultWithDefault(t *testing
 	m := testMetaBackend(t, nil)
 
 	// Get the backend
-	b, diags := m.Backend(&BackendOpts{Init: true}, encryption.StateEncryptionDisabled())
+	b, diags := m.Backend(t.Context(), &BackendOpts{Init: true}, encryption.StateEncryptionDisabled())
 	if diags.HasErrors() {
 		t.Fatal(diags.Err())
 	}
 
 	// Check resulting states
-	workspaces, err := b.Workspaces()
+	workspaces, err := b.Workspaces(t.Context())
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -1450,7 +1459,7 @@ func TestMetaBackend_configuredChangeCopy_multiToNoDefaultWithDefault(t *testing
 
 	{
 		// Check the renamed default state
-		s, err := b.StateMgr("env1")
+		s, err := b.StateMgr(t.Context(), "env1")
 		if err != nil {
 			t.Fatalf("unexpected error: %s", err)
 		}
@@ -1490,7 +1499,7 @@ func TestMetaBackend_configuredChangeCopy_multiToNoDefaultWithoutDefault(t *test
 	// Create a temporary working directory that is empty
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("backend-change-multi-to-no-default-without-default"), td)
-	defer testChdir(t, td)()
+	t.Chdir(td)
 
 	// Register the single-state backend
 	backendInit.Set("local-no-default", backendLocal.TestNewLocalNoDefault)
@@ -1505,13 +1514,13 @@ func TestMetaBackend_configuredChangeCopy_multiToNoDefaultWithoutDefault(t *test
 	m := testMetaBackend(t, nil)
 
 	// Get the backend
-	b, diags := m.Backend(&BackendOpts{Init: true}, encryption.StateEncryptionDisabled())
+	b, diags := m.Backend(t.Context(), &BackendOpts{Init: true}, encryption.StateEncryptionDisabled())
 	if diags.HasErrors() {
 		t.Fatal(diags.Err())
 	}
 
 	// Check resulting states
-	workspaces, err := b.Workspaces()
+	workspaces, err := b.Workspaces(t.Context())
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -1524,7 +1533,7 @@ func TestMetaBackend_configuredChangeCopy_multiToNoDefaultWithoutDefault(t *test
 
 	{
 		// Check the named state
-		s, err := b.StateMgr("env2")
+		s, err := b.StateMgr(t.Context(), "env2")
 		if err != nil {
 			t.Fatalf("unexpected error: %s", err)
 		}
@@ -1562,7 +1571,7 @@ func TestMetaBackend_configuredUnset(t *testing.T) {
 	// Create a temporary working directory that is empty
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("backend-unset"), td)
-	defer testChdir(t, td)()
+	t.Chdir(td)
 
 	// Ask input
 	defer testInteractiveInput(t, []string{"no"})()
@@ -1571,13 +1580,13 @@ func TestMetaBackend_configuredUnset(t *testing.T) {
 	m := testMetaBackend(t, nil)
 
 	// Get the backend
-	b, diags := m.Backend(&BackendOpts{Init: true}, encryption.StateEncryptionDisabled())
+	b, diags := m.Backend(t.Context(), &BackendOpts{Init: true}, encryption.StateEncryptionDisabled())
 	if diags.HasErrors() {
 		t.Fatal(diags.Err())
 	}
 
 	// Check the state
-	s, err := b.StateMgr(backend.DefaultStateName)
+	s, err := b.StateMgr(t.Context(), backend.DefaultStateName)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -1602,7 +1611,9 @@ func TestMetaBackend_configuredUnset(t *testing.T) {
 	}
 
 	// Write some state
-	s.WriteState(testState())
+	if err := s.WriteState(testState()); err != nil {
+		t.Fatal(err)
+	}
 	if err := s.PersistState(nil); err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -1624,7 +1635,7 @@ func TestMetaBackend_configuredUnsetCopy(t *testing.T) {
 	// Create a temporary working directory that is empty
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("backend-unset"), td)
-	defer testChdir(t, td)()
+	t.Chdir(td)
 
 	// Ask input
 	defer testInteractiveInput(t, []string{"yes", "yes"})()
@@ -1633,13 +1644,13 @@ func TestMetaBackend_configuredUnsetCopy(t *testing.T) {
 	m := testMetaBackend(t, nil)
 
 	// Get the backend
-	b, diags := m.Backend(&BackendOpts{Init: true}, encryption.StateEncryptionDisabled())
+	b, diags := m.Backend(t.Context(), &BackendOpts{Init: true}, encryption.StateEncryptionDisabled())
 	if diags.HasErrors() {
 		t.Fatal(diags.Err())
 	}
 
 	// Check the state
-	s, err := b.StateMgr(backend.DefaultStateName)
+	s, err := b.StateMgr(t.Context(), backend.DefaultStateName)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -1660,7 +1671,9 @@ func TestMetaBackend_configuredUnsetCopy(t *testing.T) {
 	}
 
 	// Write some state
-	s.WriteState(testState())
+	if err := s.WriteState(testState()); err != nil {
+		t.Fatal(err)
+	}
 	if err := s.PersistState(nil); err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -1681,7 +1694,7 @@ func TestMetaBackend_planLocal(t *testing.T) {
 	// Create a temporary working directory that is empty
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("backend-plan-local"), td)
-	defer testChdir(t, td)()
+	t.Chdir(td)
 
 	backendConfigBlock := cty.ObjectVal(map[string]cty.Value{
 		"path":          cty.NullVal(cty.String),
@@ -1701,13 +1714,13 @@ func TestMetaBackend_planLocal(t *testing.T) {
 	m := testMetaBackend(t, nil)
 
 	// Get the backend
-	b, diags := m.BackendForLocalPlan(backendConfig, encryption.StateEncryptionDisabled())
+	b, diags := m.BackendForLocalPlan(t.Context(), backendConfig, encryption.StateEncryptionDisabled())
 	if diags.HasErrors() {
 		t.Fatal(diags.Err())
 	}
 
 	// Check the state
-	s, err := b.StateMgr(backend.DefaultStateName)
+	s, err := b.StateMgr(t.Context(), backend.DefaultStateName)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -1739,7 +1752,9 @@ func TestMetaBackend_planLocal(t *testing.T) {
 	state = states.NewState()
 	mark := markStateForMatching(state, "changing")
 
-	s.WriteState(state)
+	if err := s.WriteState(state); err != nil {
+		t.Fatal(err)
+	}
 	if err := s.PersistState(nil); err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -1769,7 +1784,7 @@ func TestMetaBackend_planLocal(t *testing.T) {
 func TestMetaBackend_planLocalStatePath(t *testing.T) {
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("backend-plan-local"), td)
-	defer testChdir(t, td)()
+	t.Chdir(td)
 
 	original := testState()
 	markStateForMatching(original, "hello")
@@ -1802,13 +1817,13 @@ func TestMetaBackend_planLocalStatePath(t *testing.T) {
 	m.stateOutPath = statePath
 
 	// Get the backend
-	b, diags := m.BackendForLocalPlan(plannedBackend, encryption.StateEncryptionDisabled())
+	b, diags := m.BackendForLocalPlan(t.Context(), plannedBackend, encryption.StateEncryptionDisabled())
 	if diags.HasErrors() {
 		t.Fatal(diags.Err())
 	}
 
 	// Check the state
-	s, err := b.StateMgr(backend.DefaultStateName)
+	s, err := b.StateMgr(t.Context(), backend.DefaultStateName)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -1840,7 +1855,9 @@ func TestMetaBackend_planLocalStatePath(t *testing.T) {
 	state = states.NewState()
 	mark := markStateForMatching(state, "changing")
 
-	s.WriteState(state)
+	if err := s.WriteState(state); err != nil {
+		t.Fatal(err)
+	}
 	if err := s.PersistState(nil); err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -1871,7 +1888,7 @@ func TestMetaBackend_planLocalMatch(t *testing.T) {
 	// Create a temporary working directory that is empty
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("backend-plan-local-match"), td)
-	defer testChdir(t, td)()
+	t.Chdir(td)
 
 	backendConfigBlock := cty.ObjectVal(map[string]cty.Value{
 		"path":          cty.NullVal(cty.String),
@@ -1891,13 +1908,13 @@ func TestMetaBackend_planLocalMatch(t *testing.T) {
 	m := testMetaBackend(t, nil)
 
 	// Get the backend
-	b, diags := m.BackendForLocalPlan(backendConfig, encryption.StateEncryptionDisabled())
+	b, diags := m.BackendForLocalPlan(t.Context(), backendConfig, encryption.StateEncryptionDisabled())
 	if diags.HasErrors() {
 		t.Fatal(diags.Err())
 	}
 
 	// Check the state
-	s, err := b.StateMgr(backend.DefaultStateName)
+	s, err := b.StateMgr(t.Context(), backend.DefaultStateName)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -1927,7 +1944,9 @@ func TestMetaBackend_planLocalMatch(t *testing.T) {
 	state = states.NewState()
 	mark := markStateForMatching(state, "changing")
 
-	s.WriteState(state)
+	if err := s.WriteState(state); err != nil {
+		t.Fatal(err)
+	}
 	if err := s.PersistState(nil); err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -1958,7 +1977,7 @@ func TestMetaBackend_configureWithExtra(t *testing.T) {
 	// Create a temporary working directory that is empty
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("init-backend-empty"), td)
-	defer testChdir(t, td)()
+	t.Chdir(td)
 
 	extras := map[string]cty.Value{"path": cty.StringVal("hello")}
 	m := testMetaBackend(t, nil)
@@ -1967,13 +1986,13 @@ func TestMetaBackend_configureWithExtra(t *testing.T) {
 		Init:           true,
 	}
 
-	_, cHash, err := m.backendConfig(opts)
+	_, cHash, err := m.backendConfig(t.Context(), opts)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// init the backend
-	_, diags := m.Backend(&BackendOpts{
+	_, diags := m.Backend(t.Context(), &BackendOpts{
 		ConfigOverride: configs.SynthBody("synth", extras),
 		Init:           true,
 	}, encryption.StateEncryptionDisabled())
@@ -1989,7 +2008,7 @@ func TestMetaBackend_configureWithExtra(t *testing.T) {
 
 	// init the backend again with the same options
 	m = testMetaBackend(t, nil)
-	_, err = m.Backend(&BackendOpts{
+	_, err = m.Backend(t.Context(), &BackendOpts{
 		ConfigOverride: configs.SynthBody("synth", extras),
 		Init:           true,
 	}, encryption.StateEncryptionDisabled())
@@ -2009,17 +2028,17 @@ func TestMetaBackend_localDoesNotDeleteLocal(t *testing.T) {
 	// Create a temporary working directory that is empty
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("init-backend-empty"), td)
-	defer testChdir(t, td)()
+	t.Chdir(td)
 
 	//// create our local state
 	orig := states.NewState()
-	orig.Module(addrs.RootModuleInstance).SetOutputValue("foo", cty.StringVal("bar"), false)
+	orig.Module(addrs.RootModuleInstance).SetOutputValue("foo", cty.StringVal("bar"), false, "")
 	testStateFileDefault(t, orig)
 
 	m := testMetaBackend(t, nil)
 	m.forceInitCopy = true
 	// init the backend
-	_, diags := m.Backend(&BackendOpts{Init: true}, encryption.StateEncryptionDisabled())
+	_, diags := m.Backend(t.Context(), &BackendOpts{Init: true}, encryption.StateEncryptionDisabled())
 	if diags.HasErrors() {
 		t.Fatal(diags.Err())
 	}
@@ -2036,11 +2055,11 @@ func TestMetaBackend_configToExtra(t *testing.T) {
 	// Create a temporary working directory that is empty
 	td := t.TempDir()
 	testCopyDir(t, testFixturePath("init-backend"), td)
-	defer testChdir(t, td)()
+	t.Chdir(td)
 
 	// init the backend
 	m := testMetaBackend(t, nil)
-	_, err := m.Backend(&BackendOpts{
+	_, err := m.Backend(t.Context(), &BackendOpts{
 		Init: true,
 	}, encryption.StateEncryptionDisabled())
 	if err != nil {
@@ -2061,7 +2080,7 @@ func TestMetaBackend_configToExtra(t *testing.T) {
 	extras := map[string]cty.Value{"path": cty.StringVal("hello")}
 	m = testMetaBackend(t, nil)
 	m.forceInitCopy = true
-	_, diags := m.Backend(&BackendOpts{
+	_, diags := m.Backend(t.Context(), &BackendOpts{
 		ConfigOverride: configs.SynthBody("synth", extras),
 		Init:           true,
 	}, encryption.StateEncryptionDisabled())
@@ -2079,7 +2098,7 @@ func TestMetaBackend_configToExtra(t *testing.T) {
 // no config; return inmem backend stored in state
 func TestBackendFromState(t *testing.T) {
 	wd := tempWorkingDirFixture(t, "backend-from-state")
-	defer testChdir(t, wd.RootModuleDir())()
+	t.Chdir(wd.RootModuleDir())
 
 	// Setup the meta
 	m := testMetaBackend(t, nil)

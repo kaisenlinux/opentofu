@@ -6,6 +6,7 @@
 package command
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -74,7 +75,7 @@ func (c *RefreshCommand) Run(rawArgs []string) int {
 	c.GatherVariables(args.Vars)
 
 	// Load the encryption configuration
-	enc, encDiags := c.Encryption()
+	enc, encDiags := c.Encryption(ctx)
 	diags = diags.Append(encDiags)
 	if encDiags.HasErrors() {
 		c.showDiagnostics(diags)
@@ -82,7 +83,7 @@ func (c *RefreshCommand) Run(rawArgs []string) int {
 	}
 
 	// Prepare the backend with the backend-specific arguments
-	be, beDiags := c.PrepareBackend(args.State, args.ViewType, enc)
+	be, beDiags := c.PrepareBackend(ctx, args.State, args.ViewType, enc)
 	diags = diags.Append(beDiags)
 	if diags.HasErrors() {
 		view.Diagnostics(diags)
@@ -90,7 +91,7 @@ func (c *RefreshCommand) Run(rawArgs []string) int {
 	}
 
 	// Build the operation request
-	opReq, opDiags := c.OperationRequest(be, view, args.ViewType, args.Operation, enc)
+	opReq, opDiags := c.OperationRequest(ctx, be, view, args.ViewType, args.Operation, enc)
 	diags = diags.Append(opDiags)
 	if diags.HasErrors() {
 		view.Diagnostics(diags)
@@ -117,20 +118,20 @@ func (c *RefreshCommand) Run(rawArgs []string) int {
 	return op.Result.ExitStatus()
 }
 
-func (c *RefreshCommand) PrepareBackend(args *arguments.State, viewType arguments.ViewType, enc encryption.Encryption) (backend.Enhanced, tfdiags.Diagnostics) {
+func (c *RefreshCommand) PrepareBackend(ctx context.Context, args *arguments.State, viewType arguments.ViewType, enc encryption.Encryption) (backend.Enhanced, tfdiags.Diagnostics) {
 	// FIXME: we need to apply the state arguments to the meta object here
 	// because they are later used when initializing the backend. Carving a
 	// path to pass these arguments to the functions that need them is
 	// difficult but would make their use easier to understand.
 	c.Meta.applyStateArguments(args)
 
-	backendConfig, diags := c.loadBackendConfig(".")
+	backendConfig, diags := c.loadBackendConfig(ctx, ".")
 	if diags.HasErrors() {
 		return nil, diags
 	}
 
 	// Load the backend
-	be, beDiags := c.Backend(&BackendOpts{
+	be, beDiags := c.Backend(ctx, &BackendOpts{
 		Config:   backendConfig,
 		ViewType: viewType,
 	}, enc.State())
@@ -142,12 +143,12 @@ func (c *RefreshCommand) PrepareBackend(args *arguments.State, viewType argument
 	return be, diags
 }
 
-func (c *RefreshCommand) OperationRequest(be backend.Enhanced, view views.Refresh, viewType arguments.ViewType, args *arguments.Operation, enc encryption.Encryption,
+func (c *RefreshCommand) OperationRequest(ctx context.Context, be backend.Enhanced, view views.Refresh, viewType arguments.ViewType, args *arguments.Operation, enc encryption.Encryption,
 ) (*backend.Operation, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
 
 	// Build the operation
-	opReq := c.Operation(be, viewType, enc)
+	opReq := c.Operation(ctx, be, viewType, enc)
 	opReq.ConfigDir = "."
 	opReq.Hooks = view.Hooks()
 	opReq.Targets = args.Targets
@@ -199,11 +200,11 @@ Options:
                          accompanied by errors, show them in a more compact form
                          that includes only the summary messages.
 
-  -consolidate-warnings  If OpenTofu produces any warnings, no consolodation
+  -consolidate-warnings  If OpenTofu produces any warnings, no consolidation
                          will be performed. All locations, for all warnings
                          will be listed. Enabled by default.
 
-  -consolidate-errors    If OpenTofu produces any errors, no consolodation
+  -consolidate-errors    If OpenTofu produces any errors, no consolidation
                          will be performed. All locations, for all errors
                          will be listed. Disabled by default
 
@@ -222,6 +223,8 @@ Options:
 
   -no-color              If specified, output won't contain any color.
 
+  -concise               Disables progress-related messages in the output.
+
   -parallelism=n         Limit the number of concurrent operations. Defaults to 10.
 
   -target=resource       Resource to target. Operation will be limited to this
@@ -235,6 +238,10 @@ Options:
   -var-file=foo          Set variables in the OpenTofu configuration from
                          a file. If "terraform.tfvars" or any ".auto.tfvars"
                          files are present, they will be automatically loaded.
+
+  -json                  Produce output in a machine-readable JSON format,
+                         suitable for use in text editor integrations and 
+                         other automated systems. Always disables color.
 
   -state, state-out, and -backup are legacy options supported for the local
   backend only. For more information, see the local backend's documentation.

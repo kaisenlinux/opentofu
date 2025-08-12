@@ -6,11 +6,13 @@
 package tofu
 
 import (
+	"context"
 	"fmt"
 	"log"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
+	"github.com/zclconf/go-cty/cty/convert"
 
 	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/configs"
@@ -101,6 +103,20 @@ func resolveProviderInstance(keyExpr hcl.Expression, keyScope *lang.Scope, sourc
 		})
 	}
 
+	// bool and number type are converted to string
+	keyVal, convertErr := convert.Convert(keyVal, cty.String)
+	if convertErr != nil {
+		return nil, diags.Append(&hcl.Diagnostic{
+			Severity: hcl.DiagError,
+			Summary:  "Invalid provider instance key",
+			Detail:   fmt.Sprintf("The given instance key is unsuitable: %s.", tfdiags.FormatError(convertErr)),
+			Subject:  keyExpr.Range().Ptr(),
+		})
+	}
+
+	// Because of the string conversion before the call of the ParseInstanceKey function,
+	// no errors will be raised. Because keyVal is guaranteed to be a string.
+	// We can keep the error handling in case the implementation of ParseInstanceKey change in the future
 	parsedKey, parsedErr := addrs.ParseInstanceKey(keyVal)
 	if parsedErr != nil {
 		return nil, diags.Append(&hcl.Diagnostic{
@@ -114,18 +130,18 @@ func resolveProviderInstance(keyExpr hcl.Expression, keyScope *lang.Scope, sourc
 }
 
 // getProvider returns the providers.Interface and schema for a given provider.
-func getProvider(ctx EvalContext, addr addrs.AbsProviderConfig, providerKey addrs.InstanceKey) (providers.Interface, providers.ProviderSchema, error) {
+func getProvider(ctx context.Context, evalCtx EvalContext, addr addrs.AbsProviderConfig, providerKey addrs.InstanceKey) (providers.Interface, providers.ProviderSchema, error) {
 	if addr.Provider.Type == "" {
 		// Should never happen
 		panic("GetProvider used with uninitialized provider configuration address")
 	}
-	provider := ctx.Provider(addr, providerKey)
+	provider := evalCtx.Provider(addr, providerKey)
 	if provider == nil {
 		return nil, providers.ProviderSchema{}, fmt.Errorf("provider %s not initialized", addr.InstanceString(providerKey))
 	}
 	// Not all callers require a schema, so we will leave checking for a nil
 	// schema to the callers.
-	schema, err := ctx.ProviderSchema(addr)
+	schema, err := evalCtx.ProviderSchema(ctx, addr)
 	if err != nil {
 		return nil, providers.ProviderSchema{}, fmt.Errorf("failed to read schema for provider %s: %w", addr, err)
 	}

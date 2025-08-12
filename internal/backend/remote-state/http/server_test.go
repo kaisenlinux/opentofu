@@ -5,7 +5,7 @@
 
 package http
 
-//go:generate go run github.com/golang/mock/mockgen -package $GOPACKAGE -source $GOFILE -destination mock_$GOFILE
+//go:generate go run go.uber.org/mock/mockgen -package $GOPACKAGE -source $GOFILE -destination mock_$GOFILE
 
 import (
 	"context"
@@ -27,13 +27,13 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/opentofu/opentofu/internal/addrs"
 	"github.com/opentofu/opentofu/internal/backend"
 	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/encryption"
 	"github.com/opentofu/opentofu/internal/states"
 	"github.com/zclconf/go-cty/cty"
+	"go.uber.org/mock/gomock"
 )
 
 const sampleState = `
@@ -283,7 +283,7 @@ func TestMTLSServer_NoCertFails(t *testing.T) {
 	}
 
 	// Now get a state manager and check that it fails to refresh the state
-	sm, err := b.StateMgr(backend.DefaultStateName)
+	sm, err := b.StateMgr(t.Context(), backend.DefaultStateName)
 	if err != nil {
 		t.Fatalf("unexpected error fetching StateMgr with %s: %v", backend.DefaultStateName, err)
 	}
@@ -354,7 +354,7 @@ func TestMTLSServer_WithCertPasses(t *testing.T) {
 	}
 
 	// Now get a state manager, fetch the state, and ensure that the "foo" output is not set
-	sm, err := b.StateMgr(backend.DefaultStateName)
+	sm, err := b.StateMgr(t.Context(), backend.DefaultStateName)
 	if err != nil {
 		t.Fatalf("unexpected error fetching StateMgr with %s: %v", backend.DefaultStateName, err)
 	}
@@ -375,7 +375,7 @@ func TestMTLSServer_WithCertPasses(t *testing.T) {
 		ss.SetOutputValue(
 			addrs.OutputValue{Name: "foo"}.Absolute(addrs.RootModuleInstance),
 			cty.StringVal("bar"),
-			false)
+			false, "")
 	})
 	stateFoo = state.OutputValue(addrs.OutputValue{Name: "foo"}.Absolute(addrs.RootModuleInstance))
 	if nil == stateFoo {

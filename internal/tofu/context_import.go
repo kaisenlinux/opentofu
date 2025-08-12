@@ -127,7 +127,7 @@ func (ri *ImportResolver) ExpandAndResolveImport(importTarget *ImportTarget, ctx
 		const tupleAllowed = true
 
 		// The import target has a for_each attribute, so we need to expand it
-		forEachVal, evalDiags := evaluateForEachExpressionValue(importTarget.Config.ForEach, rootCtx, unknownsNotAllowed, tupleAllowed)
+		forEachVal, evalDiags := evaluateForEachExpressionValue(importTarget.Config.ForEach, rootCtx, unknownsNotAllowed, tupleAllowed, nil)
 		diags = diags.Append(evalDiags)
 		if diags.HasErrors() {
 			return diags
@@ -266,7 +266,7 @@ func (c *Context) Import(ctx context.Context, config *configs.Config, prevRunSta
 	}
 
 	// Build the graph
-	graph, graphDiags := builder.Build(addrs.RootModuleInstance)
+	graph, graphDiags := builder.Build(ctx, addrs.RootModuleInstance)
 	diags = diags.Append(graphDiags)
 	if graphDiags.HasErrors() {
 		return state, diags

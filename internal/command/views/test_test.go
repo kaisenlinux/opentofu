@@ -3521,26 +3521,13 @@ func runTestSaveErroredStateFile(t *testing.T, tc map[string]struct {
 			// Modify the state file path to use the temporary directory
 			tempStateFilePath := filepath.Clean(filepath.Join(tempDir, "errored_test.tfstate"))
 
-			// Get the current working directory
-			originalDir, err := os.Getwd()
-			if err != nil {
-				t.Fatalf("Error getting current working directory: %v", err)
-			}
-
 			// Change the working directory to the temporary directory
-			if err := os.Chdir(tempDir); err != nil {
-				t.Fatalf("Error changing working directory: %v", err)
-			}
-			defer func() {
-				// Change the working directory back to the original directory after the test
-				if err := os.Chdir(originalDir); err != nil {
-					t.Fatalf("Error changing working directory back: %v", err)
-				}
-			}()
+			t.Chdir(tempDir)
 
 			streams, done := terminal.StreamsForTesting(t)
 
-			if viewType == arguments.ViewHuman {
+			switch viewType {
+			case arguments.ViewHuman:
 				view := NewTest(arguments.ViewHuman, NewView(streams))
 				SaveErroredTestStateFile(data.state, data.run, data.file, view)
 				output := done(t)
@@ -3549,7 +3536,7 @@ func runTestSaveErroredStateFile(t *testing.T, tc map[string]struct {
 				if diff := cmp.Diff(expected, actual); len(diff) > 0 {
 					t.Errorf("expected:\n%s\nactual:\n%s\ndiff:\n%s", expected, actual, diff)
 				}
-			} else if viewType == arguments.ViewJSON {
+			case arguments.ViewJSON:
 				view := NewTest(arguments.ViewJSON, NewView(streams))
 				SaveErroredTestStateFile(data.state, data.run, data.file, view)
 				want, ok := data.want.([]map[string]interface{})
@@ -3557,7 +3544,7 @@ func runTestSaveErroredStateFile(t *testing.T, tc map[string]struct {
 					t.Fatalf("Failed to assert want as []map[string]interface{}")
 				}
 				testJSONViewOutputEquals(t, done(t).All(), want)
-			} else {
+			default:
 				t.Fatalf("Unsupported view type: %v", viewType)
 			}
 

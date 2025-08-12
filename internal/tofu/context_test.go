@@ -19,6 +19,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/hashicorp/go-version"
+	"github.com/zclconf/go-cty/cty"
+
 	"github.com/opentofu/opentofu/internal/configs"
 	"github.com/opentofu/opentofu/internal/configs/configload"
 	"github.com/opentofu/opentofu/internal/configs/configschema"
@@ -32,7 +34,6 @@ import (
 	"github.com/opentofu/opentofu/internal/states/statefile"
 	"github.com/opentofu/opentofu/internal/tfdiags"
 	tfversion "github.com/opentofu/opentofu/version"
-	"github.com/zclconf/go-cty/cty"
 )
 
 var (
@@ -254,7 +255,7 @@ resource "implicit_thing" "b" {
 	}
 }
 
-func testContext2(t *testing.T, opts *ContextOpts) *Context {
+func testContext2(t testing.TB, opts *ContextOpts) *Context {
 	t.Helper()
 
 	ctx, diags := NewContext(opts)
@@ -368,7 +369,6 @@ func testDiffFn(req providers.PlanResourceChangeRequest) (resp providers.PlanRes
 	resp.PlannedState = cty.ObjectVal(planned)
 	return
 }
-
 func testProvider(prefix string) *MockProvider {
 	p := new(MockProvider)
 	p.GetProviderSchemaResponse = testProviderSchema(prefix)
@@ -743,7 +743,7 @@ func contextOptsForPlanViaFile(t *testing.T, configSnap *configload.Snapshot, pl
 		return nil, nil, nil, err
 	}
 
-	config, diags := pr.ReadConfig(configs.RootModuleCallForTesting())
+	config, diags := pr.ReadConfig(t.Context(), configs.RootModuleCallForTesting())
 	if diags.HasErrors() {
 		return nil, nil, nil, diags.Err()
 	}
@@ -952,7 +952,7 @@ func legacyDiffComparisonString(changes *plans.Changes) string {
 
 // assertNoDiagnostics fails the test in progress (using t.Fatal) if the given
 // diagnostics is non-empty.
-func assertNoDiagnostics(t *testing.T, diags tfdiags.Diagnostics) {
+func assertNoDiagnostics(t testing.TB, diags tfdiags.Diagnostics) {
 	t.Helper()
 	if len(diags) == 0 {
 		return
@@ -963,7 +963,7 @@ func assertNoDiagnostics(t *testing.T, diags tfdiags.Diagnostics) {
 
 // assertNoDiagnostics fails the test in progress (using t.Fatal) if the given
 // diagnostics has any errors.
-func assertNoErrors(t *testing.T, diags tfdiags.Diagnostics) {
+func assertNoErrors(t testing.TB, diags tfdiags.Diagnostics) {
 	t.Helper()
 	if !diags.HasErrors() {
 		return
@@ -980,7 +980,7 @@ func assertNoErrors(t *testing.T, diags tfdiags.Diagnostics) {
 // assertDiagnosticsMatch sorts the two sets of diagnostics in the usual way
 // before comparing them, though diagnostics only have a partial order so that
 // will not totally normalize the ordering of all diagnostics sets.
-func assertDiagnosticsMatch(t *testing.T, got, want tfdiags.Diagnostics) {
+func assertDiagnosticsMatch(t testing.TB, got, want tfdiags.Diagnostics) {
 	got = got.ForRPC()
 	want = want.ForRPC()
 	got.Sort()
@@ -995,7 +995,7 @@ func assertDiagnosticsMatch(t *testing.T, got, want tfdiags.Diagnostics) {
 // a test. It does not generate any errors or fail the test. See
 // assertNoDiagnostics and assertNoErrors for more specific helpers that can
 // also fail the test.
-func logDiagnostics(t *testing.T, diags tfdiags.Diagnostics) {
+func logDiagnostics(t testing.TB, diags tfdiags.Diagnostics) {
 	t.Helper()
 	for _, diag := range diags {
 		desc := diag.Description()

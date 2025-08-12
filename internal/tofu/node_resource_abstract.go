@@ -6,6 +6,7 @@
 package tofu
 
 import (
+	"context"
 	"fmt"
 	"log"
 
@@ -19,6 +20,21 @@ import (
 	"github.com/opentofu/opentofu/internal/states"
 	"github.com/opentofu/opentofu/internal/tfdiags"
 )
+
+// traceNameValidateResource is a standardized trace span name we use for the
+// overall execution of all graph nodes that somehow represent the planning
+// phase for a resource instance.
+const traceNameValidateResource = "Validate resource configuration"
+
+// traceAttrConfigResourceAddr is a standardized trace span attribute name that we
+// use for recording the address of the main resource that a particular span is
+// concerned with.
+//
+// The value of this should be populated by calling the String method on
+// a value of type [addrs.ConfigResource]. DO NOT use this with results from
+// [addrs.AbsResourceInstance]; use [traceAttrResourceInstanceAddr] instead
+// for that address type.
+const traceAttrConfigResourceAddr = "opentofu.resource.address"
 
 // ConcreteResourceNodeFunc is a callback type used to convert an
 // abstract resource to a concrete one of some type.
@@ -90,6 +106,11 @@ type NodeAbstractResource struct {
 	// generateConfigPath tells this node which file to write generated config
 	// into. If empty, then config should not be generated.
 	generateConfigPath string
+
+	// removedBlockProvisioners holds any possibly existing configs.Provisioner configs that could be defined by using
+	// removed.provisioner configuration. If the field "Config.Managed.Provisioners" is having no provisioners, then
+	// these provisioners should be used instead.
+	removedBlockProvisioners []*configs.Provisioner
 }
 
 var (
@@ -474,18 +495,18 @@ func (n *NodeAbstractResource) DotNode(name string, opts *dag.DotOpts) *dag.DotN
 // eval is the only change we get to set the resource "each mode" to list
 // in that case, allowing expression evaluation to see it as a zero-element list
 // rather than as not set at all.
-func (n *NodeAbstractResource) writeResourceState(ctx EvalContext, addr addrs.AbsResource) (diags tfdiags.Diagnostics) {
-	state := ctx.State()
+func (n *NodeAbstractResource) writeResourceState(evalCtx EvalContext, addr addrs.AbsResource) (diags tfdiags.Diagnostics) {
+	state := evalCtx.State()
 
 	// We'll record our expansion decision in the shared "expander" object
 	// so that later operations (i.e. DynamicExpand and expression evaluation)
 	// can refer to it. Since this node represents the abstract module, we need
 	// to expand the module here to create all resources.
-	expander := ctx.InstanceExpander()
+	expander := evalCtx.InstanceExpander()
 
 	switch {
 	case n.Config != nil && n.Config.Count != nil:
-		count, countDiags := evaluateCountExpression(n.Config.Count, ctx)
+		count, countDiags := evaluateCountExpression(n.Config.Count, evalCtx, addr)
 		diags = diags.Append(countDiags)
 		if countDiags.HasErrors() {
 			return diags
@@ -495,7 +516,7 @@ func (n *NodeAbstractResource) writeResourceState(ctx EvalContext, addr addrs.Ab
 		expander.SetResourceCount(addr.Module, n.Addr.Resource, count)
 
 	case n.Config != nil && n.Config.ForEach != nil:
-		forEach, forEachDiags := evaluateForEachExpression(n.Config.ForEach, ctx)
+		forEach, forEachDiags := evaluateForEachExpression(n.Config.ForEach, evalCtx, addr)
 		diags = diags.Append(forEachDiags)
 		if forEachDiags.HasErrors() {
 			return diags
@@ -514,19 +535,22 @@ func (n *NodeAbstractResource) writeResourceState(ctx EvalContext, addr addrs.Ab
 	return diags
 }
 
+func isResourceMovedToDifferentType(newAddr, oldAddr addrs.AbsResourceInstance) bool {
+	return newAddr.Resource.Resource.Type != oldAddr.Resource.Resource.Type
+}
+
 // readResourceInstanceState reads the current object for a specific instance in
 // the state.
-func (n *NodeAbstractResourceInstance) readResourceInstanceState(ctx EvalContext, addr addrs.AbsResourceInstance) (*states.ResourceInstanceObject, tfdiags.Diagnostics) {
+func (n *NodeAbstractResourceInstance) readResourceInstanceState(ctx context.Context, evalCtx EvalContext, addr addrs.AbsResourceInstance) (*states.ResourceInstanceObject, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
-	provider, providerSchema, err := getProvider(ctx, n.ResolvedProvider.ProviderConfig, n.ResolvedProviderKey)
+	provider, providerSchema, err := getProvider(ctx, evalCtx, n.ResolvedProvider.ProviderConfig, n.ResolvedProviderKey)
 	if err != nil {
-		diags = diags.Append(err)
-		return nil, diags
+		return nil, diags.Append(err)
 	}
 
 	log.Printf("[TRACE] readResourceInstanceState: reading state for %s", addr)
 
-	src := ctx.State().ResourceInstanceObject(addr, states.CurrentGen)
+	src := evalCtx.State().ResourceInstanceObject(addr, states.CurrentGen)
 	if src == nil {
 		// Presumably we only have deposed objects, then.
 		log.Printf("[TRACE] readResourceInstanceState: no state present for %s", addr)
@@ -538,11 +562,26 @@ func (n *NodeAbstractResourceInstance) readResourceInstanceState(ctx EvalContext
 		// Shouldn't happen since we should've failed long ago if no schema is present
 		return nil, diags.Append(fmt.Errorf("no schema available for %s while reading state; this is a bug in OpenTofu and should be reported", addr))
 	}
-	src, upgradeDiags := upgradeResourceState(addr, provider, src, schema, currentVersion)
-	if n.Config != nil {
-		upgradeDiags = upgradeDiags.InConfigBody(n.Config.Config, addr.String())
+
+	// prevAddr will match the newAddr if the resource wasn't moved (prevRunAddr checks move results)
+	prevAddr := n.prevRunAddr(evalCtx)
+	transformArgs := stateTransformArgs{
+		currentAddr:          addr,
+		prevAddr:             prevAddr,
+		provider:             provider,
+		objectSrc:            src,
+		currentSchema:        schema,
+		currentSchemaVersion: currentVersion,
 	}
-	diags = diags.Append(upgradeDiags)
+	if isResourceMovedToDifferentType(addr, prevAddr) {
+		src, diags = moveResourceState(transformArgs)
+	} else {
+		src, diags = upgradeResourceState(transformArgs)
+	}
+
+	if n.Config != nil {
+		diags = diags.InConfigBody(n.Config.Config, addr.String())
+	}
 	if diags.HasErrors() {
 		return nil, diags
 	}
@@ -557,9 +596,9 @@ func (n *NodeAbstractResourceInstance) readResourceInstanceState(ctx EvalContext
 
 // readResourceInstanceStateDeposed reads the deposed object for a specific
 // instance in the state.
-func (n *NodeAbstractResourceInstance) readResourceInstanceStateDeposed(ctx EvalContext, addr addrs.AbsResourceInstance, key states.DeposedKey) (*states.ResourceInstanceObject, tfdiags.Diagnostics) {
+func (n *NodeAbstractResourceInstance) readResourceInstanceStateDeposed(ctx context.Context, evalCtx EvalContext, addr addrs.AbsResourceInstance, key states.DeposedKey) (*states.ResourceInstanceObject, tfdiags.Diagnostics) {
 	var diags tfdiags.Diagnostics
-	provider, providerSchema, err := getProvider(ctx, n.ResolvedProvider.ProviderConfig, n.ResolvedProviderKey)
+	provider, providerSchema, err := getProvider(ctx, evalCtx, n.ResolvedProvider.ProviderConfig, n.ResolvedProviderKey)
 	if err != nil {
 		diags = diags.Append(err)
 		return nil, diags
@@ -571,7 +610,7 @@ func (n *NodeAbstractResourceInstance) readResourceInstanceStateDeposed(ctx Eval
 
 	log.Printf("[TRACE] readResourceInstanceStateDeposed: reading state for %s deposed object %s", addr, key)
 
-	src := ctx.State().ResourceInstanceObject(addr, key)
+	src := evalCtx.State().ResourceInstanceObject(addr, key)
 	if src == nil {
 		// Presumably we only have deposed objects, then.
 		log.Printf("[TRACE] readResourceInstanceStateDeposed: no state present for %s deposed object %s", addr, key)
@@ -582,14 +621,26 @@ func (n *NodeAbstractResourceInstance) readResourceInstanceStateDeposed(ctx Eval
 	if schema == nil {
 		// Shouldn't happen since we should've failed long ago if no schema is present
 		return nil, diags.Append(fmt.Errorf("no schema available for %s while reading state; this is a bug in OpenTofu and should be reported", addr))
-
+	}
+	// prevAddr will match the newAddr if the resource wasn't moved (prevRunAddr checks move results)
+	prevAddr := n.prevRunAddr(evalCtx)
+	transformArgs := stateTransformArgs{
+		currentAddr:          addr,
+		prevAddr:             prevAddr,
+		provider:             provider,
+		objectSrc:            src,
+		currentSchema:        schema,
+		currentSchemaVersion: currentVersion,
+	}
+	if isResourceMovedToDifferentType(addr, prevAddr) {
+		src, diags = moveResourceState(transformArgs)
+	} else {
+		src, diags = upgradeResourceState(transformArgs)
 	}
 
-	src, upgradeDiags := upgradeResourceState(addr, provider, src, schema, currentVersion)
 	if n.Config != nil {
-		upgradeDiags = upgradeDiags.InConfigBody(n.Config.Config, addr.String())
+		diags = diags.InConfigBody(n.Config.Config, addr.String())
 	}
-	diags = diags.Append(upgradeDiags)
 	if diags.HasErrors() {
 		// Note that we don't have any channel to return warnings here. We'll
 		// accept that for now since warnings during a schema upgrade would
@@ -627,14 +678,12 @@ func (n *NodeAbstractResourceInstance) readResourceInstanceStateDeposed(ctx Eval
 func graphNodesAreResourceInstancesInDifferentInstancesOfSameModule(a, b dag.Vertex) bool {
 	aRI, aOK := a.(GraphNodeResourceInstance)
 	bRI, bOK := b.(GraphNodeResourceInstance)
-	if !(aOK && bOK) {
+	if !aOK || !bOK {
 		return false
 	}
 	aModInst := aRI.ResourceInstanceAddr().Module
 	bModInst := bRI.ResourceInstanceAddr().Module
-	aMod := aModInst.Module()
-	bMod := bModInst.Module()
-	if !aMod.Equal(bMod) {
+	if !aModInst.HasSameModule(bModInst) {
 		return false
 	}
 	return !aModInst.Equal(bModInst)

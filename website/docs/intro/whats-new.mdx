@@ -1,192 +1,226 @@
 ---
 sidebar_position: 2
-sidebar_label: What's new in version 1.9?
+sidebar_label: What's new in version 1.10?
 description: |-
-  Learn all about the new features in OpenTofu 1.9.
+  Learn all about the new features in OpenTofu 1.10.
 ---
 
-# What's new in OpenTofu 1.9?
+# What's new in OpenTofu 1.10?
 
-This page will run you through the most important changes in OpenTofu 1.9:
+OpenTofu 1.10 brings major improvements to how you distribute and manage your infrastructure code, with OCI registry support, native S3 state locking, and enhanced observability through OpenTelemetry tracing.
 
-- [New features](#new-features)
-  - [Provider iteration (`for_each`)](#provider-iteration-for_each)
-  - [The `-exclude` flag](#the-exclude-flag)
-- [Improvements to existing features](#improvements-to-existing-features)
-  - [Early evaluation improvements](#early-evaluation-improvements)
-  - [Encryption improvements](#encryption-improvements)
-  - [Backend improvements](#backend-improvements)
-  - [CLI improvements](#cli-improvements)
-  - [Performance improvements](#performance-improvements)
-- [Deprecations](#deprecations)
-  - [Using `ghcr.io/opentofu/opentofu` as a base image](#using-ghcrioopentofuopentofu-as-a-base-image)
+This page will run you through the most important changes in OpenTofu 1.10:
+
+- [OCI Registry Support](#oci-registry-support)
+- [Native S3 State Locking](#native-s3-state-locking)
+- [OpenTelemetry Tracing (Experimental)](#opentelemetry-tracing-experimental)
+- [Target and Exclude Files](#target-and-exclude-files)
+- [Global Provider Cache Lock](#global-provider-cache-lock)
+- [Deprecation Support (Experimental)](#deprecation-support-experimental)
+- [Enhanced moved and removed blocks](#enhanced-moved-and-removed-blocks)
+- [External Key Providers](#external-key-providers)
+- [Breaking Changes](#breaking-changes)
+- [Smaller improvements](#smaller-improvements)
 - [Bugfixes](#bugfixes)
 
-## New features
+## OCI Registry Support
 
-### Provider iteration (`for_each`)
+OpenTofu can now use OCI (Open Container Initiative) registries to distribute both providers and modules, enabling you to use your existing container registry infrastructure for infrastructure-as-code components.
 
-One of the biggest challenges keeping the code clean in a multi-region or multi-zone deployment is the sheer number of providers and related configurations you have to juggle. Essentially, you will have to create duplicated code for each region or zone.
-
-With provider iteration, you can now get rid of your code duplications by iterating over a set of providers instead of the duplicated code. If you have a small-scale setup with one of the cloud providers offering multiple zones, start by adding two variables:
+Configure OCI registry provider mirrors in your [CLI configuration](/docs/cli/config/config-file):
 
 ```hcl
-variable "regions" {
-  description = "A list of regions that should have a deployment."
-  type        = set(string)
-}
-
-variable "disabled_regions" {
-  description = "A list of regions that should be disabled and all resources removed."
-  type        = set(string)
-  default     = []
-}
-```
-
-The `regions` variable serves as a list of regions you will want to deploy to. The `disabled_regions` variable will allow you to remove a region later without removing the provider. This feature is extremely important because if you remove the provider without removing its resources, OpenTofu will be unable to remove the resources in that region.
-
-As a next step, you can create your provider declarations. As you can see, this is only a single declaration. The only restriction worth mentioning here is the `alias`. Due to technical limitations, in this version you can only use `for_each` in conjunction with `alias`.
-
-```hcl
-provider "aws" {
-  alias    = "by_region"
-  region   = each.value
-  for_each = var.regions
-}
-```
-
-Finally, you can use the provider set to call a submodule. Note that in contrast to the `provider` block above, the `for_each` iterates only over the providers that are not disabled. This lets you deprovision a region properly and later completely remove the provider.
-
-```hcl
-module "deploy" {
-  source    = "./deploy"
-  providers = {
-    aws = aws.by_region[each.key]
+provider_installation {
+  oci_mirror {
+    repository_template = "example.com/opentofu-providers/${namespace}/${type}"
+    include             = ["registry.opentofu.org/*/*"]
   }
-  for_each = setsubtract(var.regions, var.disabled_regions)
 }
 ```
 
-As this feature is a major departure how OpenTofu and its predecessor worked, there are a few limitations in place you may want to observe:
-
-1. You can only use `for_each` on variables and locals that can be obtained statically. Expressions that rely on data sources or resources are currently not usable.
-2. If you have an already-deployed infrastructure, don't simply remove a provider from the list as this will make it impossible for OpenTofu to destroy the infrastructure in this region. Instead, you will need to implement removing that infrastructure first and then remove the provider from the list. See the `disabled_regions` variable for an example above. OpenTofu will attempt to warn you if you don't use separate variables for provider and resource iterations, we strongly recommend you heed this warning.
-3. In this version each provider used in a `for_each` **must** have an alias. Providers without aliases are not supported for now due to internal technical reasons.
-4. There is currently no way to pass a set of providers to a module, you can only pass individual providers.
-
-For more details, please read the [full documentation](../language/providers/configuration.mdx#for_each-multiple-instances-of-a-provider-configuration).
-
-### The `-exclude` flag
-
-OpenTofu already has a `-target` option to only plan or apply certain resources. Why not apply everything except a certain resource? This was the thought behind the `-exclude` flag and, in fact, this was one of the highest upvoted feature requests for this release.
-
-You can test it by creating the following simple configuration:
+Use module packages from OCI registries directly as a new [module source type](/docs/language/modules/sources/):
 
 ```hcl
-resource "local_file" "a" {
-    filename = "a.txt"
-    content  = "a"
-}
-
-resource "local_file" "b" {
-    filename = "b.txt"
-    content  = "b"
-}
-
-resource "local_file" "c" {
-    filename = "c.txt"
-    content  = "c"
+module "vpc" {
+  source  = "oci://example.com/terraform-modules/vpc/aws"
 }
 ```
 
-If you run `tofu apply -exclude local_file.b`, you will see that OpenTofu creates `a.txt` and `c.txt`, but not `b.txt`.
+This feature is particularly valuable for air-gapped environments and organizations that want to use their existing container registry infrastructure.
 
-## Improvements to existing features
+You can find more information on OpenTofu's OCI artifact formats, and instructions for building your own artifacts, in [OCI Registry Integrations](/docs/main/cli/oci_registries/).
 
-### Early evaluation improvements
+## Native S3 State Locking
 
-When using early evaluation introduced in OpenTofu 1.8, OpenTofu will now prompt you for the variables needed for evaluation.
+The S3 backend now supports native state locking without requiring DynamoDB, simplifying your infrastructure and reducing costs.
 
-### Encryption improvements
+```hcl
+terraform {
+  backend "s3" {
+    bucket       = "my-opentofu-state"
+    key          = "prod/opentofu.tfstate"
+    region       = "us-east-1"
+    use_lockfile = true  # Enable native S3 locking
+  }
+}
+```
 
-#### The new `encrypted_metadata_alias` option for state encryption
+This feature leverages S3's conditional writes to provide reliable state locking using only your S3 bucket. Migration from DynamoDB-based locking is straightforward, with support for dual locking during the transition period. See the [S3 backend documentation](../language/settings/backends/s3.mdx#s3-state-locking) for details.
 
-One of the tricky parts when using [state encryption](../language/state/encryption.mdx) in previous versions is that OpenTofu needs to store the name of the key provider into the encrypted data alongside some metadata needed for decryption. This meant that changing the key provider name would involve using a `fallback` block and key provider naming for remote state data sources would have to be synchronized. With OpenTofu 1.9, we are introducing a new `encrypted_metadata_alias` option you can use to explicitly set the ID stored with the encrypted data:
+## OpenTelemetry Tracing (Experimental)
+
+Debug and optimize your OpenTofu operations with built-in OpenTelemetry support. Tracing is disabled by default to ensure privacy.
+
+Enable tracing by setting environment variables:
+
+```bash
+export OTEL_TRACES_EXPORTER=otlp
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
+export OTEL_EXPORTER_OTLP_INSECURE=true
+```
+
+OpenTofu will then send traces to your configured collector (such as Jaeger or Grafana Tempo), helping you identify performance bottlenecks and debug complex operations. Learn more in the [tracing documentation](../internals/tracing.mdx).
+
+Please note that no telemetry data is sent to OpenTofu or any external service unless you explicitly configure it.
+
+## Target and Exclude Files
+
+New `-target-file` and `-exclude-file` options allow you to manage resource targeting through version-controlled files:
+
+```bash
+tofu plan -target-file=targets/production.txt
+tofu apply -exclude-file=excludes/experimental.txt
+```
+
+The file format is simple - one resource address per line with support for comments:
+
+```
+# Critical infrastructure components
+module.networking.aws_vpc.main
+module.networking.aws_subnet.public[*]
+
+# Database infrastructure
+module.database.aws_db_instance.primary
+```
+
+This feature is perfect for CI/CD pipelines, phased deployments, and team collaboration.
+
+## Global Provider Cache Lock
+
+Concurrent OpenTofu operations can now safely share the provider cache, preventing corruption and conflicts in CI/CD environments and when using tools like Terragrunt.
+
+Enable the global cache with:
+
+```bash
+export TF_PLUGIN_CACHE_DIR=/path/to/shared/cache
+```
+
+The filesystem-level locking ensures only one process can modify a provider at a time, while others wait gracefully. This makes the provider cache ready for large-scale parallel operations.
+
+You can find more information about using the global provider cache in the [provider cache documentation](../cli/config/config-file.mdx). 
+
+## Deprecation Support (Experimental)
+
+Module authors can now mark variables and outputs as deprecated, helping users migrate to newer APIs gracefully:
+
+```hcl
+variable "instance_type" {
+  type        = string
+  deprecated  = "Use var.compute_type instead"
+}
+
+output "instance_ip" {
+  value       = aws_instance.main.public_ip
+  deprecated  = "Use output.instance_details for more information"
+}
+```
+
+Users will see clear warnings when using deprecated features, making module evolution more manageable.
+
+## Enhanced moved and removed blocks
+
+The `moved` block now supports migrating resources between different types, including built-in support for migrating from `null_resource` to `terraform_data`:
+
+```hcl
+moved {
+  from = null_resource.example
+  to   = terraform_data.example
+}
+```
+
+The `removed` block now supports lifecycle rules and provisioners:
+
+```hcl
+removed {
+  from = aws_instance.legacy
+  
+  lifecycle {
+    destroy = false
+  }
+}
+```
+
+These enhancements make infrastructure refactoring more powerful and flexible. See the [refactoring documentation](../language/modules/develop/refactoring.mdx) for more details.
+
+## External Key Providers
+
+State encryption now fully supports external key providers, allowing integration with your preferred secret management tools:
 
 ```hcl
 terraform {
   encryption {
-    key_provider "pbkdf2" "mykey" {
-      passphrase               = "OpenTofu has encryption"
-      # Note the fixed encrypted_metadata_alias here:
-      encrypted_metadata_alias = "certificates"
+    key_provider "external" "password_manager" {
+      command = ["op", "read", "op://opentofu/stateencryption"]
     }
-    method "aes_gcm" "mymethod" {
-      keys = key_provider.pbkdf2.mykey
+    
+    method "aes_gcm" "state" {
+      keys = key_provider.external.password_manager
     }
+    
     state {
-      method = method.aes_gcm.mymethod
+      method = method.aes_gcm.state
     }
   }
 }
 ```
 
-#### Auto-applying encryption
+You can also chain key providers for enhanced security. Learn more in the [state encryption documentation](../language/state/encryption.mdx#key-providers).
 
-In the previous OpenTofu version, changing the [encryption configuration](../language/state/encryption.mdx) would not apply the encryption if no resource changes were detected. In this new version, OpenTofu applies the encryption configuration even if no resource changes are in the plan.
+## Breaking Changes
 
-### Testing and validation improvements
+### Platform Requirements
+- **Linux**: Now requires kernel 3.2 or later
+- **macOS**: Now requires macOS 11 (Big Sur) or later
+- **Windows**: More conservative symlink handling
 
-* [`tofu test`](../cli/commands/test/index.mdx) now throws errors instead of warnings for invalid override and mock fields.
-* [`tofu test`](../cli/commands/test/index.mdx) now supports `override_resource` and `override_data` blocks in the scope of a single `mock_provider`.
-* References to variables, data, etc. are now usable in [variable validation](../language/values/variables.mdx#custom-validation-rules).
-* You can now use the `-consolidate-warnings` and `-consolidate-errors` options to consolidate similar warnings and errors together.
+### Docker Image
+The `ghcr.io/opentofu/opentofu` image is no longer supported as a base image. See [building your own image](../intro/install/docker.mdx#building-your-own-image) for alternatives.
 
-### Backend improvements
+### PostgreSQL Backend
+The locking mechanism has changed. You should not use OpenTofu 1.10 in parallel with earlier versions when sharing the same PostgreSQL database because the locking implementation has changed. Mixing versions can lead to conflicting writes and could cause data loss.
 
-* The [HTTP backend](../language/settings/backends/http.mdx) now supports extended trace logging, including request and response bodies.
-* The [`AzureRM` backend](../language/settings/backends/azurerm.mdx) now supports the `timeout_seconds` option with default timeout of 300 seconds.
+## Smaller improvements
 
-### CLI improvements
-
-* [`tofu console`](../cli/commands/console.mdx) now accepts expressions split over multiple lines, when the newline characters appear inside bracketing pairs or when they are escaped using a backslash.
-* `-show-sensitive` option causes [`tofu plan`](../cli/commands/plan.mdx), [`tofu apply`](../cli/commands/apply.mdx), and other commands that can return data from the configuration or state to unmask sensitive values.
-
-### Performance improvements
-
-With the help of the community, we have made several performance improvements for large graphs and large amounts of submodules.
-
-## Deprecations
-
-### Using `ghcr.io/opentofu/opentofu` as a base image
-
-Using the `ghcr.io/opentofu/opentofu` image as a base image for custom images is deprecated and this will be removed in OpenTofu 1.10. The reason behind this change is security: while we regularly update OpenTofu itself when security-relevant updates arise, providing a base image would require an update roughly once a week, which we are currently not equipped to do.
-
-However, we have added instructions on building your own base image in the [containerized installation instructions](./install/docker.mdx#building-your-own-image).
+- The `element` function now supports negative indices: `element(list, -1)` returns the last element
+- New `-concise` flag for cleaner automation output
+- PostgreSQL backend supports custom table names for multi-project setups
+- HTTP backend now supports force-unlock
+- Provider installation performance improvements
+- Improved error messages for type conversion failures
+- New built-in provider functions:
+  - `provider::terraform::decode_tfvars` - Decode a TFVars file content into an object
+  - `provider::terraform::encode_tfvars` - Encode an object into a string with TFVars format
+  - `provider::terraform::encode_expr` - Encode an expression into valid OpenTofu syntax
+- OpenTofu now recommends `-exclude` instead of `-target` in error messages about unknown values in `count` and `for_each`
 
 ## Bugfixes
 
-* `templatefile` no longer crashes if the given filename is derived from a sensitive value. ([#1801](https://github.com/opentofu/opentofu/issues/1801))
-* Configuration loading no longer crashes when a `module` block lacks the required `source` argument. ([#1888](https://github.com/opentofu/opentofu/pull/1888))
-* The `tofu force-unlock` command now returns a relevant error when used with a backend that is not configured to support locking. ([#1977](https://github.com/opentofu/opentofu/pull/1977))
-* Configuration generation during import no longer crashes if an imported object includes sensitive values. ([#1986](https://github.com/opentofu/opentofu/pull/1986), [#2077](https://github.com/opentofu/opentofu/pull/2077))
-* `.tfvars` files from the `tests` directly are no longer incorrectly loaded for non-test commands. ([#2039](https://github.com/opentofu/opentofu/pull/2039))
-* `tofu console`'s interactive mode now handles the special `exit` command correctly. ([#2086](https://github.com/opentofu/opentofu/pull/2086))
-* Provider-contributed functions are now called correctly when used in the `validation` block of an input variable declaration. ([#2052](https://github.com/opentofu/opentofu/pull/2052))
-* Sensitive values are now prohibited in early evaluation of backend configuration and module source locations, because otherwise they would be exposed as a side effect of initializing the backend or installing a module. ([#2045](https://github.com/opentofu/opentofu/pull/2045))
-* `tofu providers mirror` no longer crashes when the dependency lock file has missing or invalid entries. ([#1985](https://github.com/opentofu/opentofu/pull/1985))
-* OpenTofu now respects a provider-contributed functions' request to be called only when its arguments are fully known, for compatibility with functions that cannot handle unknown values themselves. ([#2127](https://github.com/opentofu/opentofu/pull/2127))
-* `tofu init` no longer duplicates diagnostic messages produced when evaluating early-evaluation expressions. ([#1890](https://github.com/opentofu/opentofu/pull/1890))
-* `tofu plan` change description now includes information about configuration blocks generated using a `dynamic` block with an unknown `for_each` value. ([#1948](https://github.com/opentofu/opentofu/pull/1948))
-* Error message about a provider type mismatch now correctly identifies which module contains the problem. ([#1991](https://github.com/opentofu/opentofu/pull/1991))
-* The `yamldecode` function's interpretation of scalars as numbers now conforms to the YAML 1.2 specification. In particular, the scalar value `+` is now interpreted as the string `"+"` rather than returning a parse error trying to interpret it as an integer. ([#2044](https://github.com/opentofu/opentofu/pull/2044))
-* A `module` block's `version` argument now accepts prerelease version selections using a "v" prefix before the version number. Previously this was accepted only for non-prerelease selections. ([#2124])(https://github.com/opentofu/opentofu/issues/2124)
-* The `tofu test` command doesn't try to validate mock provider definition by its underlying provider schema now. ([#2140](https://github.com/opentofu/opentofu/pull/2140))
-* Type validation for mocks and overrides are now less strict in `tofu test`. ([#2144](https://github.com/opentofu/opentofu/pull/2144))
-* Skip imports blocks logic on `tofu destroy` ([#2214](https://github.com/opentofu/opentofu/pull/2214))
-* Updated github.com/golang-jwt/jwt/v4 from 4.4.2 to 4.5.1 to make security scanners happy (no vulnerability, see [#2179](https://github.com/opentofu/opentofu/pull/2179))
-* `tofu test` is now setting `null`s for dynamic type when generating mock values. ([#2245](https://github.com/opentofu/opentofu/pull/2245))
-* Variables declared in test files are now taking into account type default values. ([#2244](https://github.com/opentofu/opentofu/pull/2244))
-* `tofu test` now removes outputs of destroyed modules between different test runs. ([#2274](https://github.com/opentofu/opentofu/pull/2274))
-* Changes in `create_before_destroy` for resources which require replacement are now properly handled when refresh is disabled. ([#2248](https://github.com/opentofu/opentofu/pull/2248))
-* `tofu init` command does not attempt to read encryption keys when `-backend=false` flag is set. (https://github.com/opentofu/opentofu/pull/2293)
+- Fixed provider name validation crash in `provider_meta` block
+- PostgreSQL backend no longer fails on workspace creation for parallel returns
+- Fixed null value handling in `element`, `slice`, and `values` functions
+- Resolved state encryption issues with backend interactions
+- Fixed import block generation improvements
+- Better handling of provider installation errors
+- Fixed dependency graph issues with import blocks
+
+For a complete list of changes, see the [full changelog](https://github.com/opentofu/opentofu/blob/v1.10/CHANGELOG.md).

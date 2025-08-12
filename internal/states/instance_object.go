@@ -12,6 +12,7 @@ import (
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 
 	"github.com/opentofu/opentofu/internal/addrs"
+	"github.com/opentofu/opentofu/internal/lang/marks"
 )
 
 // ResourceInstanceObject is the local representation of a specific remote
@@ -97,7 +98,18 @@ func (o *ResourceInstanceObject) Encode(ty cty.Type, schemaVersion uint64) (*Res
 	// If it contains marks, remove these marks before traversing the
 	// structure with UnknownAsNull, and save the PathValueMarks
 	// so we can save them in state.
-	val, pvm := o.Value.UnmarkDeepWithPaths()
+	val, allPVMs := o.Value.UnmarkDeepWithPaths()
+
+	var sensitivePVMs = make([]cty.PathValueMarks, 0, len(allPVMs))
+
+	for _, pvm := range allPVMs {
+		if _, ok := pvm.Marks[marks.Sensitive]; ok {
+			sensitivePVMs = append(sensitivePVMs, cty.PathValueMarks{
+				Path:  pvm.Path,
+				Marks: cty.NewValueMarks(marks.Sensitive),
+			})
+		}
+	}
 
 	// Our state serialization can't represent unknown values, so we convert
 	// them to nulls here. This is lossy, but nobody should be writing unknown
@@ -128,13 +140,14 @@ func (o *ResourceInstanceObject) Encode(ty cty.Type, schemaVersion uint64) (*Res
 	sort.Slice(dependencies, func(i, j int) bool { return dependencies[i].String() < dependencies[j].String() })
 
 	return &ResourceInstanceObjectSrc{
-		SchemaVersion:       schemaVersion,
-		AttrsJSON:           src,
-		AttrSensitivePaths:  pvm,
-		Private:             o.Private,
-		Status:              o.Status,
-		Dependencies:        dependencies,
-		CreateBeforeDestroy: o.CreateBeforeDestroy,
+		SchemaVersion:           schemaVersion,
+		AttrsJSON:               src,
+		AttrSensitivePaths:      sensitivePVMs,
+		TransientPathValueMarks: allPVMs,
+		Private:                 o.Private,
+		Status:                  o.Status,
+		Dependencies:            dependencies,
+		CreateBeforeDestroy:     o.CreateBeforeDestroy,
 	}, nil
 }
 

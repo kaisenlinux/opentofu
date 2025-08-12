@@ -1,88 +1,120 @@
-## 1.9.0
+## 1.10.6 (unreleased)
 
-UPGRADE NOTES:
+## 1.10.5
 
-* Using the `ghcr.io/opentofu/opentofu` image as a base image for custom images is deprecated and this will be removed in OpenTofu 1.10.
+BUG FIXES:
 
-    Please refer to https://opentofu.org/docs/main/intro/install/docker/ for instructions on building your own image.
+- Fixed issue where usage of TF_PLUGIN_CACHE_DIR could result in unexpected lock contention errors ([#3090](https://github.com/opentofu/opentofu/pull/3090))
+  - NOTE: It is still highly recommended to have valid .terraform.lock.hcl files in projects using TF_PLUGIN_CACHE_DIR
+
+## 1.10.4
+
+BUG FIXES:
+
+- Fixed crash where sensitive set values used in for_each could cause a panic. ([#3070](https://github.com/opentofu/opentofu/pull/3070))
+- Fixed incorrect approach to mocking provider "ReadResource" calls in test. ([#3068](https://github.com/opentofu/opentofu/pull/3068))
+- Reduced calls to  ListKeys in azure backend (for rate limiting). ([#3083](https://github.com/opentofu/opentofu/pull/3083))
+
+## 1.10.3
+
+BUG FIXES:
+
+- OpenTofu will no longer crash in a rare case where a dynamically-invalid expression has its error suppressed by `try` or `can` and then that expression becomes relevant for deciding whether to report a "change outside of OpenTofu" in the human-oriented plan diff. ([#2988](https://github.com/opentofu/opentofu/pull/2988))
+- Ensure provider downloads into temp are cleaned up correctly on windows. ([#2843](https://github.com/opentofu/opentofu/issues/2843))
+- Correctly handle structural typed attributes during test provider mocking. ([#2994](https://github.com/opentofu/opentofu/pull/2994))
+- Fix erroneous detection of changes with sensitive resource attributes. ([#3024](https://github.com/opentofu/opentofu/pull/3024))
+
+## 1.10.2
+
+BUG FIXES:
+
+- S3 backend now correctly sends the `x-amz-server-side-encryption` header for the lockfile. ([#2870](https://github.com/opentofu/opentofu/issues/2970))
+- A provider source address explicitly using the hostname `registry.terraform.io` will no longer cause errors related to a corresponding provider on `registry.opentofu.org` when executing workflow commands like plan and apply. ([#2979](https://github.com/opentofu/opentofu/issues/2979))
+
+## 1.10.1
+
+BUG FIXES:
+
+- Fix `TF_APPEND_USER_AGENT` handling in the S3 remote state backend. ([#2955](https://github.com/opentofu/opentofu/pull/2955))
+
+## 1.10.0
+
+This release has some changes that might require special attention when upgrading from an earlier release. Refer to "UPGRADE NOTES" below for more information.
 
 NEW FEATURES:
 
-* **`for_each` in provider configuration blocks:** An alternate (aka "aliased") provider configuration can now have multiple dynamically-chosen instances using the `for_each` argument:
+- OpenTofu can now install **module packages from OCI Registries** using the new `oci:` source address scheme. ([#2540](https://github.com/opentofu/opentofu/issues/2540))
+- OpenTofu now supports **OCI Registries as a new kind of provider mirror**. ([#2540](https://github.com/opentofu/opentofu/issues/2540))
+- **Input variables and output values can now be declared as deprecated**, causing warnings when they are used by other modules. ([#1005](https://github.com/opentofu/opentofu/issues/1005))
+- **The `s3` backend can now implement locking without DynamoDB**, using new features recently added to Amazon S3. ([#599](https://github.com/opentofu/opentofu/issues/599))
+- **The `pg` backend now supports storing multiple states in a single database**, by specifying specifying `table_name` and `index_name` arguments to spread them across multiple tables. ([#2465](https://github.com/opentofu/opentofu/pull/2465))
+- **The global provider cache is now safe for concurrent use by multiple OpenTofu processes**. ([#1878](https://github.com/opentofu/opentofu/pull/1878))
 
-    ```hcl
-    provider "aws" {
-      alias    = "by_region"
-      for_each = var.aws_regions
+    When the global provider cache is in a filesystem that supports file locking, multiple processes now cooperate to avoid cache corruption and spurious checksum verification errors.
 
-      region = each.key
-    }
-    ```
+UPGRADE NOTES:
 
-    Each instance of a resource can also potentially select a different instance of the associated provider configuration, making it easier to declare infrastructure that ought to be duplicated for each region.
+- On Linux, OpenTofu now requires kernel version 3.2 or later.
+- On macOS, OpenTofu now requires macOS 11 Big Sur or later. We expect that the next minor release will require macOS 12 Monterey or later.
+- Using the `ghcr.io/opentofu/opentofu` image as a base image for custom images is no longer supported. Refer to [Use OpenTofu as Docker Image](https://opentofu.org/docs/intro/install/docker/) for instructions on building your own image.
+- OpenTofu v1.10's `pg` backend must not be used in the same database as the `pg` backend from older OpenTofu versions, because the locking implementation has changed. Mixing versions in the same database may allow conflicting writes that can cause data loss.
+- On Windows, OpenTofu now has a more conservative definition of "symlink" which is limited only true [symbolic links](https://learn.microsoft.com/en-us/windows/win32/fileio/symbolic-links), and does not include other [reparse point](https://learn.microsoft.com/en-us/windows/win32/fileio/reparse-points) types such as [junctions](https://learn.microsoft.com/en-us/windows/win32/fileio/hard-links-and-junctions#junctions).
 
-* **`-exclude` planning option:** similar to `-target`, this allows operators to tell OpenTofu to work on only a subset of the objects declared in the configuration or tracked in the state.
-
-    ```shell
-    tofu plan -exclude=kubernetes_manifest.crds
-    ```
-
-    While `-target` specifies the objects to _include_ and skips everything not needed for the selected objects, `-exclude` instead specifies objects to skip. OpenTofu will exclude the selected objects and everything that depends on them.
+    This change fixes a number of edge-cases that caused OpenTofu to interpret paths incorrectly in earlier versions, but may cause new failures if the path you use for the `TEMP` environment variable traverses through directory junctions. Replacing any directory junctions with directory symlinks (e.g. using [`mklink`](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/mklink) with the `/d` parameter instead of the `/j` parameter) should ensure correct treatment.
 
 ENHANCEMENTS:
-* OpenTofu builds now use Go version 1.22 ([#2050](https://github.com/opentofu/opentofu/issues/2050))
-* `provider` blocks now support `for_each`. ([#2123](https://github.com/opentofu/opentofu/issues/2123))
-* The new `-exclude` planning option complements `-target`, specifying what to exclude rather than what to include. ([#1900](https://github.com/opentofu/opentofu/pull/1900))
-* State encryption key providers now support customizing the metadata key via `encrypted_metadata_alias`. ([#2080](https://github.com/opentofu/opentofu/pull/2080))
-* OpenTofu will now prompt for values for input variables needed for early evaluation. ([#2047](https://github.com/opentofu/opentofu/pull/2047))
-* Various commands now accept `-consolidate-warnings` and `-consolidate-errors` options to enable or disable OpenTofu's summarization of diagnostic messages. ([#1894](https://github.com/opentofu/opentofu/pull/1894))
-* `-show-sensitive` option causes `tofu plan`, `tofu apply`, and other commands that can return data from the configuration or state to unmask sensitive values. ([#1554](https://github.com/opentofu/opentofu/pull/1554))
-* `tofu console` now accepts expressions split over multiple lines, when the newline characters appear inside bracketing pairs or when they are escaped using a backslash. ([#1875](https://github.com/opentofu/opentofu/pull/1875))
-* Improved performance for large graphs when debug logs are not enabled. ([#1810](https://github.com/opentofu/opentofu/pull/1810))
-* Improved performance for large graphs with many submodules. ([#1809](https://github.com/opentofu/opentofu/pull/1809))
-* Extended trace logging for HTTP backend, including request and response bodies. ([#2120](https://github.com/opentofu/opentofu/pull/2120))
-* `tofu test` now throws errors instead of warnings for invalid override and mock fields. ([#2220](https://github.com/opentofu/opentofu/pull/2220))
-* `tofu test` now supports `override_resource` and `override_data` blocks in the scope of a single `mock_provider`. ([#2168](https://github.com/opentofu/opentofu/pull/2168))
-* Changes to encryption configuration now auto-apply the migration ([#2232](https://github.com/opentofu/opentofu/pull/2232))
-* References to vars, data, etc. are now usable in variable validation ([#2216](https://github.com/opentofu/opentofu/pull/2216))
-* `AzureRM` backend now support `timeout_seconds` with default timeout of 300 seconds ([#2263](https://github.com/opentofu/opentofu/pull/2263))
-* Adds warning about provider version `0.0.0` ([#2281](https://github.com/opentofu/opentofu/pull/2281))
+
+- The `element` function now accepts negative indices, which extends the existing "wrapping" model into the negative direction. In particular, choosing element `-1` selects the final element in the sequence. ([#2371](https://github.com/opentofu/opentofu/pull/2371))
+- New planning options `-target-file` and `-exclude-file` allow specifying a list of resource instances to target or exclude in a separate file, to allow listing routinely-relevant target addresses in files under version control for easier reuse. ([#2620](https://github.com/opentofu/opentofu/pull/2620))
+- The new `-concise` option for `tofu plan` and `tofu apply` prevents OpenTofu from printing "progress-like" messages, focusing only on final results. This is intended for use in automation scenarios where streaming output is not possible and so ongoing progress information is not useful. ([#2549](https://github.com/opentofu/opentofu/issues/2549))
+- `tofu test` now accepts remote module sources when specifying an explicit module to test in a `.tftest.hcl` file. ([#2651](https://github.com/opentofu/opentofu/pull/2651))
+- `tofu test` allows `provider` blocks to refer to output values from a `run` block in a `.tftest.hcl` file. ([#2543](https://github.com/opentofu/opentofu/pull/2543))
+- State encryption now supports using external programs as key providers. Additionally, the PBKDF2 key provider now supports chaining via the `chain` parameter. ([#2023](https://github.com/opentofu/opentofu/pull/2023))
+- `moved` blocks now supports moving remote objects between resource instances of different types, with automatic migration of the state data. ([#2370](https://github.com/opentofu/opentofu/pull/2370), [#2481](https://github.com/opentofu/opentofu/pull/2481))
+- OpenTofu now includes more information about value types when describing type conversion-related errors, and some other errors relating to local iteration symbols. ([#2815](https://github.com/opentofu/opentofu/pull/2815), [#2816](https://github.com/opentofu/opentofu/pull/2816))
+- The `s3` backend now supports the new `mx-central-1` AWS region. ([#2596](https://github.com/opentofu/opentofu/pull/2596))
+- The `s3` backend's `skip_s3_checksum` option now additionally disables [the AWS SDK's default S3 integrity checks](https://github.com/aws/aws-sdk-go-v2/discussions/2960), which may improve compatibility for incomplete third-party reimplementations of the Amazon S3 API. ([#2596](https://github.com/opentofu/opentofu/pull/2596))
+- The `pg` backend now uses a more granular locking strategy so that locks for multiple separate configurations sharing the same database will not conflict with one another. ([#2411](https://github.com/opentofu/opentofu/pull/2411))
+- The `oss` backend, for state storage in Alibaba Cloud OSS, now fully supports all of the typical environment variables for HTTP/HTTPS proxy configuration. Previously it did not support per-origin opt-out using the `NO_PROXY` environment variable. ([#2675](https://github.com/opentofu/opentofu/pull/2675))
+- `removed` blocks can now include `lifecycle` and `provisioner` configuration, to configure how OpenTofu should deal with any remaining instances of the resource that has been removed. ([#2556](https://github.com/opentofu/opentofu/issues/2556))
+- The `tofu force-unlock` command is now supported by the `http` backend. ([#2381](https://github.com/opentofu/opentofu/pull/2381))
+- The `version` argument in `module` blocks can now be set to `null`, which is treated the same as omitting the argument completely. ([#2660](https://github.com/opentofu/opentofu/pull/2660))
+- The built-in provider named "terraform" now offers functions for encoding and decoding data in OpenTofu's `.tfvars` file format, and for encoding an arbitrary value as OpenTofu expression syntax. ([#2306](https://github.com/opentofu/opentofu/pull/2306))
+- The `tofu show` command now supports a new explicit and extensible usage style, with `-state` and `-plan=PLANFILE` options. The old style with zero or one positional arguments is still supported for backward-compatibility. ([#2699](https://github.com/opentofu/opentofu/pull/2699))
+- Dynamic instance keys in the `provider` argument for resources and the `providers` argument for module calls is now automatically converted to string, for consistency with how map indexing typically behaves. ([#2378](https://github.com/opentofu/opentofu/issues/2378))
+- The plan and apply summaries now include a count of resource instances being "forgotten", which means that they will be removed from OpenTofu state without destroying the associated object in the remote system. ([#1956](https://github.com/opentofu/opentofu/issues/1956))
+- OpenTofu can now produce partial OpenTelemetry trace information, sent to a collector endpoint you control, when run with certain environment variables. This release includes experimental initial support for `tofu init` tracing, but more trace detail is planned for later OpenTofu releases. ([#2665](https://github.com/opentofu/opentofu/pull/2665))
+- When running `tofu init` with a dependency lock file that contains entries for certain providers on `registry.terraform.io`, OpenTofu now attempts to select the corresponding version of the equivalent provider on `registry.opentofu.org` as an aid when switching directly from OpenTofu's predecessor. This applies only to the providers that are rebuilt from source and republished on the OpenTofu Registry by the OpenTofu project, because we cannot assume any equivalence for third-party providers published in other namespaces. ([#2791](https://github.com/opentofu/opentofu/pull/2791))
+- When installing a provider from a source that offers a `.zip` archive of a provider package but that cannot also offer a signed set of official checksums for the provider, OpenTofu now includes its locally-verified zip archive checksum (`zh:` scheme) in the dependency lock file in addition to the package contents checksum (`h1:` checksum) previously recorded. This makes it more likely that a future reinstall of the same package from a different source will be verified successfully. ([#2656](https://github.com/opentofu/opentofu/pull/2656))
+- OpenTofu now recommends using `-exclude` instead of `-target`, when possible, in the error messages about unknown values in `count` and `for_each` arguments, thereby providing a more definitive workaround. ([#2154](https://github.com/opentofu/opentofu/pull/2154)) 
+- `tofu init` now includes additional suggestions when provider installation fails and the provider had been chosen implicitly based on the backward-compatibility rules, rather than written explicitly in the configuration. ([#2084](https://github.com/opentofu/opentofu/issues/2084))
 
 BUG FIXES:
-* `templatefile` no longer crashes if the given filename is derived from a sensitive value. ([#1801](https://github.com/opentofu/opentofu/issues/1801))
-* Configuration loading no longer crashes when a `module` block lacks the required `source` argument. ([#1888](https://github.com/opentofu/opentofu/pull/1888))
-* The `tofu force-unlock` command now returns a relevant error when used with a backend that is not configured to support locking. ([#1977](https://github.com/opentofu/opentofu/pull/1977))
-* Configuration generation during import no longer crashes if an imported object includes sensitive values. ([#1986](https://github.com/opentofu/opentofu/pull/1986), [#2077](https://github.com/opentofu/opentofu/pull/2077))
-* `.tfvars` files from the `tests` directly are no longer incorrectly loaded for non-test commands. ([#2039](https://github.com/opentofu/opentofu/pull/2039))
-* `tofu console`'s interactive mode now handles the special `exit` command correctly. ([#2086](https://github.com/opentofu/opentofu/pull/2086))
-* Provider-contributed functions are now called correctly when used in the `validation` block of an input variable declaration. ([#2052](https://github.com/opentofu/opentofu/pull/2052))
-* Sensitive values are now prohibited in early evaluation of backend configuration and module source locations, because otherwise they would be exposed as a side-effect of initializing the backend or installing a module. ([#2045](https://github.com/opentofu/opentofu/pull/2045))
-* `tofu providers mirror` no longer crashes when the dependency lock file has missing or invalid entries. ([#1985](https://github.com/opentofu/opentofu/pull/1985))
-* OpenTofu now respects a provider-contributed functions' request to be called only when its arguments are fully known, for compatibility with functions that cannot handle unknown values themselves. ([#2127](https://github.com/opentofu/opentofu/pull/2127))
-* `tofu init` no longer duplicates diagnostic messages produced when evaluating early-evaluation expressions. ([#1890](https://github.com/opentofu/opentofu/pull/1890))
-* `tofu plan` change description now includes information about configuration blocks generated using a `dynamic` block with an unknown `for_each` value. ([#1948](https://github.com/opentofu/opentofu/pull/1948))
-* Error message about a provider type mismatch now correctly identifies which module contains the problem. ([#1991](https://github.com/opentofu/opentofu/pull/1991))
-* The `yamldecode` function's interpretation of scalars as numbers now conforms to the YAML 1.2 specification. In particular, the scalar value `+` is now interpreted as the string `"+"` rather than returning a parse error trying to interpret it as an integer. ([#2044](https://github.com/opentofu/opentofu/pull/2044))
-* A `module` block's `version` argument now accepts prerelease version selections using a "v" prefix before the version number. Previously this was accepted only for non-prerelease selections. ([#2124])(https://github.com/opentofu/opentofu/issues/2124)
-* The `tofu test` command doesn't try to validate mock provider definition by its underlying provider schema now. ([#2140](https://github.com/opentofu/opentofu/pull/2140))
-* Type validation for mocks and overrides are now less strict in `tofu test`. ([#2144](https://github.com/opentofu/opentofu/pull/2144))
-* Skip imports blocks logic on `tofu destroy` ([#2214](https://github.com/opentofu/opentofu/pull/2214))
-* Updated github.com/golang-jwt/jwt/v4 from 4.4.2 to 4.5.1 to make security scanners happy (no vulnerability, see [#2179](https://github.com/opentofu/opentofu/pull/2179))
-* `tofu test` is now setting `null`s for dynamic type when generating mock values. ([#2245](https://github.com/opentofu/opentofu/pull/2245))
-* Variables declared in test files are now taking into account type default values. ([#2244](https://github.com/opentofu/opentofu/pull/2244))
-* `tofu test` now removes outputs of destroyed modules between different test runs. ([#2274](https://github.com/opentofu/opentofu/pull/2274))
-* Changes in `create_before_destroy` for resources which require replacement are now properly handled when refresh is disabled. ([#2248](https://github.com/opentofu/opentofu/pull/2248))
-* `tofu init` command does not attempt to read encryption keys when `-backend=false` flag is set. (https://github.com/opentofu/opentofu/pull/2293)
 
-INTERNAL CHANGES:
-
-* The Makefile now includes `build` and `help` targets. ([#1925](https://github.com/opentofu/opentofu/pull/1925), [#1927](https://github.com/opentofu/opentofu/pull/1927))
-* The Makefile is now configured to allow only POSIX standard make syntax, without implementation-specific extensions. ([#1811](https://github.com/opentofu/opentofu/pull/1928))
+- The error message for an unsuitable value nested in a complex-typed input variable now mentions the path to the individual problematic value, rather than incorrectly reporting that the top-level value has the problem. ([#2394](https://github.com/opentofu/opentofu/issues/2394))
+- Module source addresses referring to Git branches whose names contain slashes are now handled as described in the documentation. Previously some syntax patterns would cause OpenTofu to misunderstand the slash as a path separator, rather than as part of the branch name. ([#2396](https://github.com/opentofu/opentofu/issues/2396))
+- Expiration warnings for provider GPG keys now appear only when _all_ available keys have expired, and not when only a subset of keys have expired. ([#2475](https://github.com/opentofu/opentofu/issues/2475))
+- The `format` and `formatlist` functions can now accept `null` as one of the arguments without causing problems during the apply phase. Previously these functions would incorrectly return an unknown value when given `null` and so could cause a failure during the apply phase where no unknown values are allowed. ([#2371](https://github.com/opentofu/opentofu/pull/2371))
+- The `transpose` function now returns better error messages when the operation would cause the resulting map to contain a null key, which is impossible. ([#2553](https://github.com/opentofu/opentofu/pull/2553))
+- `base64gunzip` no longer exposes sensitive values when returning a base64 decoding error. ([#2503](https://github.com/opentofu/opentofu/pull/2503))
+- The `plantimestamp` function now returns an unknown value during validation. ([#2397](https://github.com/opentofu/opentofu/issues/2397))
+- When assigning an empty map to a variable that is declared as a map of an object type with at least one optional attribute, OpenTofu no longer creates a subtly-broken value. ([#2371](https://github.com/opentofu/opentofu/pull/2371))
+- A syntax error in a `required_providers` block no longer causes OpenTofu to crash. ([#2344](https://github.com/opentofu/opentofu/issues/2344))
+- `import` blocks no longer create supurious incorrect provider dependencies that can could cause `tofu init` to fail in some cases. ([#2336](https://github.com/opentofu/opentofu/pull/2336))
+- When using `import` with the `-generate-config-out` planning option, generating a `resource` block for a type with nested attributes now works correctly, instead of producing a spurious error that the nested computed attribute is required. ([#2372](https://github.com/opentofu/opentofu/issues/2372))
+- The `azurerm` backend now correctly handles blob containers with a large number of blobs. ([#2720](https://github.com/opentofu/opentofu/pull/2720))
+- The `azurerm` backend now respects the `timeout_seconds` argument when listing workspaces. ([#2720](https://github.com/opentofu/opentofu/pull/2720))
+- OpenTofu no longer creates an incorrect dependency graph containing a cycle when a resource using `create_before_destroy` depends on one that does not use that option. ([#2398](https://github.com/opentofu/opentofu/issues/2398))
+- In configurations where multiple encryption key providers and methods are configured, OpenTofu now loads only those needed for the current operation, ensuring correct encryption handling in the `terraform_remote_state` data source. ([#2551](https://github.com/opentofu/opentofu/issues/2551))
+- `tofu init` now detects and reports errors when creating the file used to track backend initialization, instead of silently failing to save that information. ([#2798](https://github.com/opentofu/opentofu/pull/2798))
+- An invalid provider name in a `provider_meta` block no longer causes OpenTofu to crash. ([#2347](https://github.com/opentofu/opentofu/pull/2347))
+- OpenTofu no longer indirectly uses software that was affected by [CVE-2024-45336](https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2024-45336) and [CVE-2024-45341](https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2024-45341). These advisories did not significantly affect OpenTofu, and so this upgrade is purely to reduce false positives in naive security scanners. ([#2438](https://github.com/opentofu/opentofu/pull/2438))
 
 ## Previous Releases
 
 For information on prior major and minor releases, see their changelogs:
 
+- [v1.9](https://github.com/opentofu/opentofu/blob/v1.9/CHANGELOG.md)
 - [v1.8](https://github.com/opentofu/opentofu/blob/v1.8/CHANGELOG.md)
 - [v1.7](https://github.com/opentofu/opentofu/blob/v1.7/CHANGELOG.md)
 - [v1.6](https://github.com/opentofu/opentofu/blob/v1.6/CHANGELOG.md)

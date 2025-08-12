@@ -15,6 +15,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/opentofu/opentofu/internal/lang"
+
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 	"golang.org/x/exp/slices"
@@ -64,17 +66,19 @@ Options:
                         accompanied by errors, show them in a more compact
                         form that includes only the summary messages.
 
-  -consolidate-warnings If OpenTofu produces any warnings, no consolodation
+  -consolidate-warnings If OpenTofu produces any warnings, no consolidation
                         will be performed. All locations, for all warnings
                         will be listed. Enabled by default.
 
-  -consolidate-errors   If OpenTofu produces any errors, no consolodation
+  -consolidate-errors   If OpenTofu produces any errors, no consolidation
                         will be performed. All locations, for all errors
                         will be listed. Disabled by default
 
   -filter=testfile      If specified, OpenTofu will only execute the test files
                         specified by this flag. You can use this option multiple
-                        times to execute more than one test file.
+                        times to execute more than one test file. The path should
+                        be relative to the current working directory, even if
+                        -test-directory is set.
 
   -json                 If specified, machine readable output will be printed in
                         JSON format
@@ -147,7 +151,7 @@ func (c *TestCommand) Run(rawArgs []string) int {
 		return 1
 	}
 
-	config, configDiags := c.loadConfigWithTests(".", args.TestDirectory)
+	config, configDiags := c.loadConfigWithTests(ctx, ".", args.TestDirectory)
 	diags = diags.Append(configDiags)
 	if configDiags.HasErrors() {
 		view.Diagnostics(nil, nil, diags)
@@ -224,13 +228,21 @@ func (c *TestCommand) Run(rawArgs []string) int {
 
 	log.Printf("[DEBUG] TestCommand: found %d files with %d run blocks", fileCount, runCount)
 
+	if len(args.Filter) > 0 && len(suite.Files) == 0 {
+		diags = diags.Append(tfdiags.Sourceless(
+			tfdiags.Warning,
+			"No tests were found",
+			"-filter is being used but no tests were found. Make sure you're using a relative path to the current working directory.",
+		))
+	}
+
 	diags = diags.Append(fileDiags)
 	if fileDiags.HasErrors() {
 		view.Diagnostics(nil, nil, diags)
 		return 1
 	}
 
-	opts, err := c.contextOpts()
+	opts, err := c.contextOpts(ctx)
 	if err != nil {
 		diags = diags.Append(err)
 		view.Diagnostics(nil, nil, diags)
@@ -507,7 +519,6 @@ func (runner *TestFileRunner) ExecuteTestFile(ctx context.Context, file *modulet
 	}
 }
 
-//nolint:funlen // Historical function predates our complexity rules
 func (runner *TestFileRunner) ExecuteTestRun(ctx context.Context, run *moduletest.Run, file *moduletest.File, state *states.State, config *configs.Config) (*states.State, bool) {
 	log.Printf("[TRACE] TestFileRunner: executing run block %s/%s", file.Name, run.Name)
 
@@ -536,7 +547,14 @@ func (runner *TestFileRunner) ExecuteTestRun(ctx context.Context, run *moduletes
 		return state, false
 	}
 
-	resetConfig, configDiags := config.TransformForTest(run.Config, file.Config)
+	evalCtx, evalDiags := buildEvalContextForProviderConfigTransform(runner.States, run, file, config, runner.Suite.GlobalVariables)
+	run.Diagnostics = run.Diagnostics.Append(evalDiags)
+	if evalDiags.HasErrors() {
+		run.Status = moduletest.Error
+		return state, false
+	}
+
+	resetConfig, configDiags := config.TransformForTest(run.Config, file.Config, evalCtx)
 	defer resetConfig()
 
 	run.Diagnostics = run.Diagnostics.Append(configDiags)
@@ -573,7 +591,7 @@ func (runner *TestFileRunner) ExecuteTestRun(ctx context.Context, run *moduletes
 		}
 
 		if runner.Suite.Verbose {
-			schemas, diags := planCtx.Schemas(config, plan.PlannedState)
+			schemas, diags := planCtx.Schemas(ctx, config, plan.PlannedState)
 
 			// If we're going to fail to render the plan, let's not fail the overall
 			// test. It can still have succeeded. So we'll add the diagnostics, but
@@ -650,7 +668,7 @@ func (runner *TestFileRunner) ExecuteTestRun(ctx context.Context, run *moduletes
 	}
 
 	if runner.Suite.Verbose {
-		schemas, diags := planCtx.Schemas(config, plan.PlannedState)
+		schemas, diags := planCtx.Schemas(ctx, config, plan.PlannedState)
 
 		// If we're going to fail to render the plan, let's not fail the overall
 		// test. It can still have succeeded. So we'll add the diagnostics, but
@@ -1035,7 +1053,10 @@ func (runner *TestFileRunner) Cleanup(ctx context.Context, file *moduletest.File
 			runConfig = state.Run.Config.ConfigUnderTest
 		}
 
-		reset, configDiags := runConfig.TransformForTest(state.Run.Config, file.Config)
+		evalCtx, ctxDiags := getEvalContextForTest(runner.States, runConfig, runner.Suite.GlobalVariables)
+		diags = diags.Append(ctxDiags)
+
+		reset, configDiags := runConfig.TransformForTest(state.Run.Config, file.Config, evalCtx)
 		diags = diags.Append(configDiags)
 
 		updated := state.State
@@ -1054,6 +1075,41 @@ func (runner *TestFileRunner) Cleanup(ctx context.Context, file *moduletest.File
 }
 
 // helper functions
+
+// buildEvalContextForProviderConfigTransform constructs a hcl.EvalContext based on the provided map of
+// TestFileState instances, configuration and global variables. Also, creates a tofu.InputValues mapping for
+// variable values that are relevant to the config being tested. And merges the variables into the evalCtx.
+// This is required to transform provider configs defined inside the test file, which are using run block output.
+//
+// Variable pre-evaluation and merging into the context is required, to evaluate more complex expressions involving both
+// run outputs and var (For example, as a function arguments). Without this step the test file won't be able to overwrite
+// input variables with `variables` block.
+//
+// The evalCtx returned from this, contains built-in functions for the same reason.
+func buildEvalContextForProviderConfigTransform(states map[string]*TestFileState, run *moduletest.Run, file *moduletest.File, config *configs.Config, globals map[string]backend.UnparsedVariableValue) (*hcl.EvalContext, tfdiags.Diagnostics) {
+	evalCtx, diags := getEvalContextForTest(states, config, globals)
+	vars, varDiags := buildInputVariablesForTest(run, file, config, globals, evalCtx)
+	diags = diags.Append(varDiags)
+	if diags.HasErrors() {
+		return evalCtx, diags
+	}
+
+	varMap := evalCtx.Variables["var"].AsValueMap()
+	if varMap == nil {
+		varMap = make(map[string]cty.Value)
+	}
+	for name, val := range vars {
+		if val == nil {
+			continue
+		}
+		varMap[name] = val.Value
+	}
+	evalCtx.Variables["var"] = cty.ObjectVal(varMap)
+
+	scope := &lang.Scope{}
+	evalCtx.Functions = scope.Functions()
+	return evalCtx, diags
+}
 
 // buildInputVariablesForTest creates a tofu.InputValues mapping for
 // variable values that are relevant to the config being tested.

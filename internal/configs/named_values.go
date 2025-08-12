@@ -7,11 +7,13 @@ package configs
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/ext/typeexpr"
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
+	"github.com/opentofu/opentofu/internal/tfdiags"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/convert"
 
@@ -37,6 +39,7 @@ type Variable struct {
 	ParsingMode VariableParsingMode
 	Validations []*CheckRule
 	Sensitive   bool
+	Deprecated  string
 
 	DescriptionSet bool
 	SensitiveSet   bool
@@ -122,6 +125,19 @@ func decodeVariableBlock(block *hcl.Block, override bool) (*Variable, hcl.Diagno
 		v.SensitiveSet = true
 	}
 
+	if attr, exists := content.Attributes["deprecated"]; exists {
+		valDiags := gohcl.DecodeExpression(attr.Expr, nil, &v.Deprecated)
+		diags = append(diags, valDiags...)
+		if !valDiags.HasErrors() && strings.TrimSpace(v.Deprecated) == "" {
+			diags = append(diags, &hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  "Invalid `deprecated` value",
+				Detail:   `The "deprecated" argument must not be empty, and should provide instructions on how to migrate away from usage of this deprecated variable.`,
+				Subject:  &block.LabelRanges[0],
+			})
+		}
+	}
+
 	if attr, exists := content.Attributes["nullable"]; exists {
 		valDiags := gohcl.DecodeExpression(attr.Expr, nil, &v.Nullable)
 		diags = append(diags, valDiags...)
@@ -157,7 +173,7 @@ func decodeVariableBlock(block *hcl.Block, override bool) (*Variable, hcl.Diagno
 				diags = append(diags, &hcl.Diagnostic{
 					Severity: hcl.DiagError,
 					Summary:  "Invalid default value for variable",
-					Detail:   fmt.Sprintf("This default value is not compatible with the variable's type constraint: %s.", err),
+					Detail:   fmt.Sprintf("This default value is not compatible with the variable's type constraint: %s.", tfdiags.FormatError(err)),
 					Subject:  attr.Expr.Range().Ptr(),
 				})
 				val = cty.DynamicVal
@@ -279,6 +295,22 @@ func (v *Variable) Required() bool {
 	return v.Default == cty.NilVal
 }
 
+// InputPrompt returns the text that will be shown during prompting for the variable input when required but no value given.
+// This method is meant to return also the deprecated message together with the description when both exists or only the
+// deprecated info when the description is missing.
+// Other than these 2 cases, the method is keeping the default behavior in case of both, deprecated and description,
+// are missing by returning the description. This will keep the previous behavior where during prompting will be shown only the
+// variable name.
+func (v *Variable) InputPrompt() string {
+	switch {
+	case v.Description != "" && v.Deprecated != "":
+		return fmt.Sprintf("%s.\nVariable is marked as deprecated with the following message: %s", v.Description, v.Deprecated)
+	case v.Deprecated != "":
+		return fmt.Sprintf("Variable is marked as deprecated with the following message: %s", v.Deprecated)
+	}
+	return v.Description
+}
+
 // VariableParsingMode defines how values of a particular variable given by
 // text-only mechanisms (command line arguments and environment variables)
 // should be parsed to produce the final value.
@@ -385,6 +417,7 @@ type Output struct {
 	Expr        hcl.Expression
 	DependsOn   []hcl.Traversal
 	Sensitive   bool
+	Deprecated  string
 
 	Preconditions []*CheckRule
 
@@ -441,6 +474,20 @@ func decodeOutputBlock(block *hcl.Block, override bool) (*Output, hcl.Diagnostic
 		valDiags := gohcl.DecodeExpression(attr.Expr, nil, &o.Sensitive)
 		diags = append(diags, valDiags...)
 		o.SensitiveSet = true
+	}
+
+	if attr, exists := content.Attributes["deprecated"]; exists {
+		valDiags := gohcl.DecodeExpression(attr.Expr, nil, &o.Deprecated)
+		diags = append(diags, valDiags...)
+
+		if !diags.HasErrors() && strings.TrimSpace(o.Deprecated) == "" {
+			diags = diags.Append(&hcl.Diagnostic{
+				Severity: hcl.DiagError,
+				Summary:  "Invalid `deprecated` attribute",
+				Detail:   `The "deprecated" argument must not be empty, and should provide instructions on how to migrate away from usage of this deprecated output value.`,
+				Subject:  attr.Expr.Range().Ptr(),
+			})
+		}
 	}
 
 	if attr, exists := content.Attributes["depends_on"]; exists {
@@ -535,6 +582,9 @@ var variableBlockSchema = &hcl.BodySchema{
 			Name: "sensitive",
 		},
 		{
+			Name: "deprecated",
+		},
+		{
 			Name: "nullable",
 		},
 	},
@@ -559,6 +609,9 @@ var outputBlockSchema = &hcl.BodySchema{
 		},
 		{
 			Name: "sensitive",
+		},
+		{
+			Name: "deprecated",
 		},
 	},
 	Blocks: []hcl.BlockHeaderSchema{
